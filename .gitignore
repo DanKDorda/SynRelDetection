@@ -1,0 +1,9 @@
+.idea/
+.idea_modules/
+
+*.iws
+*.pyc
+
+datasets/
+results/
+logs/

@@ -1,0 +1,6 @@
+batch_size: 4
+num_epochs: 2
+num_workers: 2
+data_root: '/Users/i517610/PycharmProjects/SynRelDetection/datasets/synthrel2'
+path: 'scene_info.json'
+scales: [1]
