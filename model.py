@@ -9,9 +9,24 @@ class SyntheticGraphLearner(nn.Module):
     def __init__(self, opts):
         super(SyntheticGraphLearner, self).__init__()
         self.opts = opts
+        self.method = opts.method
+
+        # Declare output properties
+        self.edge_set = torch.FloatTensor()
+        self.gt_edge_set = torch.FloatTensor()
+
+        # Define networks
         self.feature_net = FeatureNet()
         self.edge_proposal_net = GraphProposalNetwork()
         self.final_predictor = ...
+
+        # Define optimizers
+        self.supervised_optimizer = torch.optim.Adam([FeatureNet.parameters(), GraphProposalNetwork.parameters()])
+
+        # Define loss functions
+        self.l1_critetion = nn.L1Loss()
+        self.softmax_criterion = nn.CrossEntropyLoss()
+        self.loss = torch.FloatTensor()
 
     def forward(self, input_data):
         # get detections
@@ -41,13 +56,23 @@ class SyntheticGraphLearner(nn.Module):
 
         edge_set = self.edge_proposal_net(vertex_features, geometry_tensor)
 
-        # propose image for missing boy
-        predicted_image = self.final_predictor(vertex_features, edge_set, chosen_one)
-
-        self.predicted_image = predicted_image
+        if self.method == 'supervised':
+            pass
+        elif self.method == 'unsupervised':
+            # propose image for missing boy
+            predicted_image = self.final_predictor(vertex_features, edge_set, chosen_one)
+            self.predicted_image = predicted_image
 
     def compute_loss(self):
-        self.loss = self.l2_criterion(self.predicted_image, self.desired_out)
+        if self.method == 'supervised':
+            pass
+        elif self.method == 'unsupervised':
+            self.loss = self.l1_criterion(self.predicted_image, self.desired_out)
+
+    def optimize_params(self):
+        self.loss.backward()
+
+
 
     @staticmethod
     def masker(image, annotations):
@@ -123,8 +148,7 @@ class GraphProposalNetwork(nn.Module):
         self.get_visual_attention = nn.Sequential(*visual_attention_layers)
 
         # embed feed forward, [conv, batch, relu] x N -> softmax |||| OR |||| use MLP?
-        embed_attention_layers = []
-
+        embed_attention_layers = [nn.Linear(), nn.ReLU(), nn.Linear(), nn.Softmax()]
         self.embed_attention = nn.Sequential(*embed_attention_layers)
 
     def forward(self, object_features, scene_geometry):
@@ -139,7 +163,7 @@ class GraphProposalNetwork(nn.Module):
 
         for i in range(self.N_edges):
             h = self.get_visual_attention(visual_features, incidence_column)
-            b = visual_features*h.T
+            b = torch.matmul(visual_features, h.T)
             incidence_column = self.embed_attention(b)
             incidence_matrix = torch.cat([incidence_matrix, incidence_column], dim=3)
 
