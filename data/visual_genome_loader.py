@@ -52,6 +52,22 @@ class VG_dataset(data.Dataset):
         return len(self.annotations)
 
 
+def custom_collate(batch, use_shared_memory=False):
+    out = {}
+    out['path'] = [b['path'] for b in batch]
+
+    if use_shared_memory:
+        numel = sum([x['visual'].numel() for x in batch])
+        storage = batch[0]['visual'].storage()._new_shared(numel)
+        out_tensor = batch[0]['visual'].new(storage)
+        torch.stack([b['visual'] for b in batch], 0, out=out_tensor)
+    out['visual'] = out_tensor
+
+    out['objects'] = [b['image_info']['objects'] for b in batch]
+    out['relationships'] = [b['image_info']['relationships'] for b in batch]
+    return out
+
+
 class CustomDataLoader(data.DataLoader):
     pass
 

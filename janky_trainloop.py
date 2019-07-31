@@ -2,34 +2,34 @@ import sys
 import os
 from easydict import EasyDict as edict
 import yaml
+import functools
 
 import torch
 import torch.nn as nn
 import torch.utils.data as data
 
 import model
-from data.visual_genome_loader import VG_dataset
+from data.visual_genome_loader import VG_dataset, custom_collate
 
 
 def main(opts):
-
     dl = get_dataloader(opts)
-
-    for data in dl:
-        print(data)
 
     trainer = model.SyntheticGraphLearner(opts)
 
     for epoch in range(opts.num_epochs):
         for data in dl:
             trainer.forward(data)
-            trainer.calculate_loss()
+            trainer.compute_loss()
             trainer.optimize_params()
 
 
 def get_dataloader(opts):
     ds = VG_dataset(opts)
-    dl = data.DataLoader(ds, batch_size=opts.batch_size, shuffle=False, num_workers=opts.num_workers)
+
+    partial_collate_fn = functools.partial(custom_collate, use_shared_memory=opts.num_workers > 0)
+    dl = data.DataLoader(ds, batch_size=opts.batch_size, shuffle=False, num_workers=opts.num_workers,
+                         collate_fn=partial_collate_fn)
     return dl
 
 
