@@ -1,12 +1,21 @@
 batch_size: 4
-num_epochs: 2
+num_epochs: 50
 num_workers: 2
+scales: [1]
+
 data_root: '/Users/i517610/PycharmProjects/SynRelDetection/datasets/synthrel1'
 path: 'scene_info.json'
-scales: [1]
-GPN:
-  N_heads: 2
-  feat_in: 128
+
 method: 'supervised'
 lr: 0.001
 cuda: False
+
+GPN:
+  N_heads: 2
+  feat_in: 128
+
+logs:
+  loss_out: 8
+
+writer:
+  use_writer: True

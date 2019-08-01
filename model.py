@@ -136,6 +136,9 @@ class SyntheticGraphLearner(nn.Module):
 
         return imagelet_batch
 
+    def get_loss(self):
+        return self.loss.detach().item()
+
 
 class FeatureNet(nn.Module):
     def __init__(self, opts):

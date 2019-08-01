@@ -3,10 +3,12 @@ import os
 from easydict import EasyDict as edict
 import yaml
 import functools
+import tqdm
 
 import torch
 import torch.nn as nn
 import torch.utils.data as data
+from torch.utils.tensorboard import SummaryWriter
 
 import model
 from data.visual_genome_loader import VG_dataset, custom_collate
@@ -16,12 +18,23 @@ def main(opts):
     dl = get_dataloader(opts)
 
     trainer = model.SyntheticGraphLearner(opts)
+    current_iter = 0
+
+    if opts.writer.use_writer:
+        writer = SummaryWriter()
 
     for epoch in range(opts.num_epochs):
-        for data in dl:
+        for data in tqdm.tqdm(dl):
             trainer.forward(data)
             trainer.compute_loss()
             trainer.optimize_params()
+            current_iter += 1
+
+            if current_iter % opts.logs.loss_out == 0:
+                loss = trainer.get_loss()
+                if opts.writer.use_writer:
+                    writer.add_scalar('supervised l1 loss', loss, global_step=current_iter)
+                tqdm.tqdm.write(str(loss))
 
 
 def get_dataloader(opts):
