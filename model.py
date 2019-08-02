@@ -43,10 +43,13 @@ class SyntheticGraphLearner(nn.Module):
         # get detections
         # TODO: how does pytorch handle batches of annotations????
         # answer: BADLY
+        ct = utils.CompoundTimer()
         image, objects, relationships = input_data['visual'], input_data['objects'], input_data['relationships']
         d_max = max([len(obj) for obj in objects])
+        ct.mark('create gt adjacenecy')
         self.gt_adjacency_tensor = utils.rel_list_to_adjacency_tensor(relationships, self.opts.batch_size,
                                                                       d_max)
+        ct.mark('create gt adjacenecy end')
         ### MOVE TO GPU
         if self.opts.cuda:
             self.gt_adjacency_tensor.cuda()
@@ -56,11 +59,16 @@ class SyntheticGraphLearner(nn.Module):
             image_masked, chosen_idx = self.masker(image, annotations)
 
         # find features from images -> list
+        ct.mark('imagelets')
         imagelets_batched = self.get_imagelets(image, objects)
+        ct.mark('imagelets end')
 
+        ct.mark('vertex features')
         vertex_feature_list = [self.feature_net(imagelets) for imagelets in imagelets_batched]
+        ct.mark('vertex features end')
 
         # proposal of edges from object features and geometry
+        ct.mark('extract geometry')
         geometry_tensor = torch.zeros(self.opts.batch_size, d_max, 4)
 
         for i, img_obs in enumerate(objects):
@@ -72,8 +80,11 @@ class SyntheticGraphLearner(nn.Module):
                 size_y = abs(int((bb[2] - bb[3])))
                 geometry_tensor[i, j, :] = torch.tensor([mid_x, mid_y, size_x, size_y])
 
+        ct.mark('extract geometry end')
+        ct.mark('get adjacency')
         self.adjacency_tensor = self.graph_proposal_net(vertex_feature_list, geometry_tensor)
-
+        ct.mark('get adjacency end')
+        #print(ct)
         if self.method == 'unsupervised':
             # propose image for missing boy
             predicted_image = self.final_predictor(vertex_feature_list, self.adjacency_tensor, chosen_idx)
@@ -196,20 +207,17 @@ class GraphProposalNetwork(nn.Module):
         super(GraphProposalNetwork, self).__init__()
         self.opts = opts
         self.N_heads = opts.GPN.N_heads
-        self.feat_in = opts.GPN.feat_in
-        self.feat_out = 128
+        self.feat_in = opts.GPN.feat_in + 4
+        self.feat_out = 256
         self.feat_concat = self.feat_out * 2
 
         self.preliminary_transform = nn.Sequential(nn.Linear(self.feat_in, self.feat_out))
         self.attention_nets = torch.nn.ModuleList()
-        for i in range(self.N_heads):
-            attention_layers = [nn.Linear(self.feat_concat, 128), nn.LeakyReLU(0.2), nn.Linear(128, 1)]
-            attention_net = nn.Sequential(*attention_layers)
-            self.attention_nets.append(attention_net)
+        attention_layers = [nn.Linear(self.feat_concat, 128), nn.LeakyReLU(0.2), nn.Linear(128, self.N_heads)]
+        self.attention_net = nn.Sequential(*attention_layers)
 
     def forward(self, object_features, scene_geometry, d_max=10):
-        # oh no, these bad boys are different sizes across the batch.... >:9
-        # object_features is a list -> turn it into a tensor
+        # object_features is a list of tensors of D x 128 x 1 x 1
         # input tensor dim = batch x D_max x feature_len
 
         # visual_features = torch.cat((object_features, scene_geometry), 2)
@@ -219,15 +227,15 @@ class GraphProposalNetwork(nn.Module):
         for batch_idx, batch_vertices in enumerate(object_features):
             batch_vertices.squeeze_(2)
             batch_vertices.squeeze_(2)
-            embed_vertices = self.preliminary_transform(batch_vertices)
+            geom_cat = torch.cat((batch_vertices, scene_geometry[batch_idx, ...]), dim=1)
+            embed_vertices = self.preliminary_transform(geom_cat)
             vlist = torch.split(embed_vertices, 1)
 
             for i, vi in enumerate(vlist):
                 for j, vj in enumerate([v for k, v in enumerate(vlist) if k != i]):
-                    for h in range(self.N_heads):
-                        compound_tensor = torch.cat((vi, vj), dim=1)
-                        edge_val = self.attention_nets[h](compound_tensor)
-                        adjacency_tensor[batch_idx, h, j, i] = edge_val
+                    compound_tensor = torch.cat((vi, vj), dim=1)
+                    edge_vals = self.attention_net(compound_tensor)
+                    adjacency_tensor[batch_idx, :, j, i] = edge_vals
 
         # for i, vi in enumerate(feature_list):
         #
