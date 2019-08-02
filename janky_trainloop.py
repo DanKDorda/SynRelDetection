@@ -4,6 +4,7 @@ from easydict import EasyDict as edict
 import yaml
 import functools
 import tqdm
+from pprint import pformat
 
 import torch
 import torch.nn as nn
@@ -22,6 +23,7 @@ def main(opts):
 
     if opts.writer.use_writer:
         writer = SummaryWriter()
+        writer.add_text('options', pformat(opts), 0)
 
     for epoch in range(opts.num_epochs):
         for data in tqdm.tqdm(dl):
@@ -49,7 +51,7 @@ def get_dataloader(opts):
 if __name__ == "__main__":
     print('test mode')
 
-    config_path = '/Users/i517610/PycharmProjects/SynRelDetection/options/debug_opts.yaml'
+    config_path = os.path.join(os.getcwd(), 'options/debug_opts.yaml')
     with open(config_path) as stream:
         try:
             opts = edict(yaml.load(stream, Loader=yaml.FullLoader))

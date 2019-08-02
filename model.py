@@ -27,7 +27,7 @@ class SyntheticGraphLearner(nn.Module):
         if self.opts.cuda:
             self.feature_net.cuda()
             self.graph_proposal_net.cuda()
-            self.final_predictor.cuda()
+            # self.final_predictor.cuda()
 
         param_list = list(self.feature_net.parameters()) + list(self.graph_proposal_net.parameters())
         self.supervised_optimizer = torch.optim.Adam(param_list, lr=opts.lr)
@@ -47,6 +47,10 @@ class SyntheticGraphLearner(nn.Module):
         d_max = max([len(obj) for obj in objects])
         self.gt_adjacency_tensor = utils.rel_list_to_adjacency_tensor(relationships, self.opts.batch_size,
                                                                       d_max)
+        ### MOVE TO GPU
+        if self.opts.cuda:
+            self.gt_adjacency_tensor.cuda()
+            image.cuda()
 
         if self.method == 'unsupervised':
             image_masked, chosen_idx = self.masker(image, annotations)
@@ -110,9 +114,14 @@ class SyntheticGraphLearner(nn.Module):
         # list option
         imagelet_batch = []
 
+        if self.opts.cuda:
+            imagelet_base = torch.cuda.FloatTensor
+        else:
+            imagelet_base = torch.FloatTensor
+
         for b in range(self.opts.batch_size):
             bboxes = [obj['bbox'] for obj in objects[b]]
-            imagelets = torch.zeros(len(bboxes), 3, 96, 96)
+            imagelets = imagelet_base(len(bboxes), 3, 96, 96)
             for i, bb in enumerate(bboxes):
                 imagelets[i, ...] = image[b, :, bb[2]:bb[3], bb[0]:bb[1]]
             imagelet_batch.append(imagelets)
