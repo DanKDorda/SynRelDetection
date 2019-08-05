@@ -84,6 +84,8 @@ class SyntheticGraphLearner(nn.Module):
         ct.mark('get adjacency')
         self.adjacency_tensor = self.graph_proposal_net(vertex_feature_list, geometry_tensor)
         ct.mark('get adjacency end')
+        with torch.no_grad():
+            re_list = utils.adjacency_tensor_to_rel_list(self.adjacency_tensor)
         #print(ct)
         if self.method == 'unsupervised':
             # propose image for missing boy
@@ -188,17 +190,23 @@ class FeatureNet(nn.Module):
         self.bn4 = nn.BatchNorm2d(num_features=128)
         self.relu4 = nn.ReLU()
 
+        self.resnet = ResnetBlock(128)
+
+        self.conv5 = nn.Conv2d(128, self.opts.FeatNet.feat_out, 4, 1, 0)
+
         self.av_pool = nn.AvgPool2d(kernel_size=4)
 
-    def forward(self, input):
-        output = self.relu0(self.bn0(self.conv0(input)))
+    def forward(self, im_in):
+        output = self.relu0(self.bn0(self.conv0(im_in)))
         output = self.relu1(self.bn1(self.conv1(output)))
         output = self.pool1(output)  # 48 x 48
         output = self.relu2(self.bn2(self.conv2(output)))  # 25 x 25
         output = self.relu3(self.bn3(self.conv3(output)))  # 13 x 13
         output = self.pool3(output)
         output = self.relu4(self.bn4(self.conv4(output)))
-        output = self.av_pool(output)
+        # output = self.av_pool(output)
+        output = self.resnet(output)
+        output = self.conv5(output)
         return output
 
 
@@ -247,6 +255,17 @@ class GraphProposalNetwork(nn.Module):
         #             adjacency_tensor[h, j, i] = self.attention_net[h](torch.cat((vi_embed, vj_embed)))
 
         return adjacency_tensor
+
+
+class ResnetBlock(nn.Module):
+    def __init__(self, num_lay):
+        super(ResnetBlock, self).__init__()
+        self.conv = nn.Conv2d(num_lay, num_lay, 3, 1, 1)
+        self.norm = nn.BatchNorm2d(num_lay)
+        self.relu = nn.ReLU()
+
+    def forward(self, x, leakage=0.1):
+        return self.relu(self.norm(self.conv(x))) + leakage*x
 
 
 if __name__ is '__main__':

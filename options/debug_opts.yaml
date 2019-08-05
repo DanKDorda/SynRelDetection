@@ -10,9 +10,12 @@ method: 'supervised'
 lr: 0.001
 cuda: False
 
+FeatNet:
+  feat_out: 64
+
 GPN:
   N_heads: 2
-  feat_in: 128
+  feat_in: 64
 
 logs:
   loss_out: 8

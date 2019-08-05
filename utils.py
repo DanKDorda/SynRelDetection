@@ -1,21 +1,32 @@
 import torch
 import time
-from pprint import pformat
 
-
-def bbox_to_slice(bbox):
-    bbox_slice = ...
-    return bbox_slice
-
-
-def rel_list_to_adjacency_tensor(rels, batch_size, num_objects):
+def rel_list_to_adjacency_tensor(relation_list_batch, batch_size, num_objects):
     A = torch.zeros(batch_size, 2, num_objects, num_objects)
-    for i, rel in enumerate(rels):
+    for i, rel in enumerate(relation_list_batch):
         for r in rel:
             A[i, 0, r[0], r[2]] = r[1][0]
             A[i, 1, r[0], r[2]] = r[1][1]
 
     return A
+
+
+def adjacency_tensor_to_rel_list(at):
+    rl = []
+    at_batched = torch.split(at, 1)
+    for atb in at_batched:
+        rlb = []
+        atb = atb.squeeze(0)
+        for row_idx, row in enumerate(torch.split(atb, 1, dim=1)):
+            elem1 = row_idx
+            row = row.squeeze(1)
+            for col_idx, col in enumerate(row.split(1, dim=1)):
+                col = col.squeeze(1)
+                elem2 = col_idx
+                relations = col
+                rlb.append((elem1, relations, elem2))
+        rl.append(rlb)
+    return rl
 
 
 class CompoundTimer:
