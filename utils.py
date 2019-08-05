@@ -2,15 +2,16 @@ import torch
 import time
 
 def rel_list_to_adjacency_tensor(relation_list_batch, batch_size, num_objects):
-    A = torch.zeros(batch_size, 2, num_objects, num_objects)
+    A = torch.zeros(batch_size, num_objects, num_objects, 2)
     for i, rel in enumerate(relation_list_batch):
         for r in rel:
-            A[i, 0, r[0], r[2]] = r[1][0]
-            A[i, 1, r[0], r[2]] = r[1][1]
+            A[i, r[0], r[2], 0] = r[1][0]
+            A[i, r[0], r[2], 1] = r[1][1]
 
     return A
 
 
+# TODO: fix for new adjacency tensor spec
 def adjacency_tensor_to_rel_list(at):
     rl = []
     at_batched = torch.split(at, 1)

@@ -84,8 +84,8 @@ class SyntheticGraphLearner(nn.Module):
         ct.mark('get adjacency')
         self.adjacency_tensor = self.graph_proposal_net(vertex_feature_list, geometry_tensor)
         ct.mark('get adjacency end')
-        with torch.no_grad():
-            re_list = utils.adjacency_tensor_to_rel_list(self.adjacency_tensor)
+        # with torch.no_grad():
+        #     re_list = utils.adjacency_tensor_to_rel_list(self.adjacency_tensor)
         #print(ct)
         if self.method == 'unsupervised':
             # propose image for missing boy
@@ -215,14 +215,15 @@ class GraphProposalNetwork(nn.Module):
         super(GraphProposalNetwork, self).__init__()
         self.opts = opts
         self.N_heads = opts.GPN.N_heads
-        self.feat_in = opts.GPN.feat_in + 4
+        self.feat_in = opts.GPN.feat_in
+        self.geometry_feat = 4
         self.feat_out = 256
         self.feat_concat = self.feat_out * 2
 
-        self.preliminary_transform = nn.Sequential(nn.Linear(self.feat_in, self.feat_out))
-        self.attention_nets = torch.nn.ModuleList()
-        attention_layers = [nn.Linear(self.feat_concat, 128), nn.LeakyReLU(0.2), nn.Linear(128, self.N_heads)]
-        self.attention_net = nn.Sequential(*attention_layers)
+        self.preliminary_transform = nn.Linear(self.feat_in, self.feat_out)
+        self.geometry_add = nn.Sequential(nn.Linear(self.geometry_feat, 32), nn.LeakyReLU(0.02), nn.Linear(32, self.feat_out))
+        self.geometry_mult = nn.Sequential(nn.Linear(self.geometry_feat, 32), nn.LeakyReLU(0.02), nn.Linear(32, self.feat_out))
+        self.attention_net = nn.Sequential(nn.Linear(self.feat_concat, 128), nn.LeakyReLU(0.02), nn.Linear(128, self.N_heads))
 
     def forward(self, object_features, scene_geometry, d_max=10):
         # object_features is a list of tensors of D x 128 x 1 x 1
@@ -230,29 +231,32 @@ class GraphProposalNetwork(nn.Module):
 
         # visual_features = torch.cat((object_features, scene_geometry), 2)
 
-        adjacency_tensor = torch.zeros(len(object_features), self.N_heads, d_max, d_max)
+        adjacency_tensor = torch.zeros(len(object_features), d_max, d_max, self.N_heads)
 
-        for batch_idx, batch_vertices in enumerate(object_features):
-            batch_vertices.squeeze_(2)
-            batch_vertices.squeeze_(2)
-            geom_cat = torch.cat((batch_vertices, scene_geometry[batch_idx, ...]), dim=1)
-            embed_vertices = self.preliminary_transform(geom_cat)
-            vlist = torch.split(embed_vertices, 1)
+        embed_vertices = self.preliminary_transform(torch.cat([of.unsqueeze(0) for of in object_features]).view(self.opts.batch_size, 10, self.feat_in))
+        embed_geometry_m = self.geometry_mult(scene_geometry)
+        embed_geometry_a = self.geometry_add(scene_geometry)
+
+        embed_vertices = embed_vertices * embed_geometry_m
+        embed_vertices = embed_vertices + embed_geometry_a
+
+        for batch_idx, batch_vertices in enumerate(embed_vertices.split(1)):
+            # batch_vertices.squeeze_(2)
+            # batch_vertices.squeeze_(2)
+            # geom_cat = torch.cat((batch_vertices, scene_geometry[batch_idx, ...]), dim=1)
+            # embed_vertices = self.preliminary_transform(batch_vertices)
+            # embed_vertices = embed_vertices * embed_geometry_m[batch_idx]
+            # embed_vertices = embed_vertices + embed_geometry_a[batch_idx]
+            batch_vertices.squeeze_(0)
+            vlist = torch.split(batch_vertices, 1)
 
             for i, vi in enumerate(vlist):
+                compound_tensor = torch.cat((vi, vi), dim=1)
                 for j, vj in enumerate([v for k, v in enumerate(vlist) if k != i]):
-                    compound_tensor = torch.cat((vi, vj), dim=1)
-                    edge_vals = self.attention_net(compound_tensor)
-                    adjacency_tensor[batch_idx, :, j, i] = edge_vals
-
-        # for i, vi in enumerate(feature_list):
-        #
-        #     for j, vj in enumerate(feature_list[:i, i + 1:]):
-        #         vi_embed = self.preliminary_transform(torch.cat([vi, scene_geometry[]]))
-        #         vj_embed = self.preliminary_transform(vj)
-        #
-        #         for h in range(self.N_heads):
-        #             adjacency_tensor[h, j, i] = self.attention_net[h](torch.cat((vi_embed, vj_embed)))
+                    compound_tensor = torch.cat((compound_tensor, torch.cat((vi, vj), dim=1)))
+                # compound_tensor = compound_tensor[1:]
+                edge_vals = self.attention_net(compound_tensor)
+                adjacency_tensor[batch_idx, i] = edge_vals
 
         return adjacency_tensor
 
