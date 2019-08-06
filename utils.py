@@ -1,12 +1,22 @@
 import torch
 import time
 
+
 def rel_list_to_adjacency_tensor(relation_list_batch, batch_size, num_objects):
     A = torch.zeros(batch_size, num_objects, num_objects, 2)
     for i, rel in enumerate(relation_list_batch):
         for r in rel:
             A[i, r[0], r[2], 0] = r[1][0]
             A[i, r[0], r[2], 1] = r[1][1]
+
+    return A
+
+
+def rel_list_to_connectivity_matrix(relation_list_batch, batch_size, num_objects):
+    A = torch.zeros(batch_size, num_objects, num_objects)
+    for i, rel in enumerate(relation_list_batch):
+        for r in rel:
+            A[i, r[0], r[2]] = 1
 
     return A
 

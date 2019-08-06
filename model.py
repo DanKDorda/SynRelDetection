@@ -16,6 +16,8 @@ class SyntheticGraphLearner(nn.Module):
         # Declare output properties
         self.adjacency_tensor = torch.FloatTensor()
         self.gt_adjacency_tensor = torch.FloatTensor()
+        self.connectivity_matrix = torch.LongTensor()
+        self.gt_connectivity_matrix = torch.LongTensor()
         self.predicted_image = torch.FloatTensor()
 
         # Define networks
@@ -49,6 +51,8 @@ class SyntheticGraphLearner(nn.Module):
         ct.mark('create gt adjacenecy')
         self.gt_adjacency_tensor = utils.rel_list_to_adjacency_tensor(relationships, self.opts.batch_size,
                                                                       d_max)
+        self.gt_connectivity_matrix = utils.rel_list_to_connectivity_matrix(relationships, self.opts.batch_size,
+                                                                            d_max)
         ct.mark('create gt adjacenecy end')
         ### MOVE TO GPU
         if self.opts.cuda:
@@ -82,11 +86,11 @@ class SyntheticGraphLearner(nn.Module):
 
         ct.mark('extract geometry end')
         ct.mark('get adjacency')
-        self.adjacency_tensor = self.graph_proposal_net(vertex_feature_list, geometry_tensor)
+        self.connectivity_matrix = self.graph_proposal_net(vertex_feature_list, geometry_tensor)
         ct.mark('get adjacency end')
         # with torch.no_grad():
         #     re_list = utils.adjacency_tensor_to_rel_list(self.adjacency_tensor)
-        #print(ct)
+        # print(ct)
         if self.method == 'unsupervised':
             # propose image for missing boy
             predicted_image = self.final_predictor(vertex_feature_list, self.adjacency_tensor, chosen_idx)
@@ -94,7 +98,14 @@ class SyntheticGraphLearner(nn.Module):
 
     def compute_loss(self):
         if self.method == 'supervised':
-            self.loss = self.l1_critetion(self.adjacency_tensor, self.gt_adjacency_tensor)
+            # self.loss = 0 #self.l1_critetion(self.adjacency_tensor, self.gt_adjacency_tensor) * 0.1
+
+            ce_loss = 0
+            for row_idx, row in enumerate(self.connectivity_matrix.split(1, dim=1)):
+                target = torch.argmax(self.gt_connectivity_matrix[:, row_idx, :], dim=1)
+                row.squeeze_(1)
+                ce_loss += self.softmax_criterion(row, target)
+            self.loss = ce_loss
         elif self.method == 'unsupervised':
             self.loss = self.l1_criterion(self.predicted_image, self.desired_out)
 
@@ -221,9 +232,14 @@ class GraphProposalNetwork(nn.Module):
         self.feat_concat = self.feat_out * 2
 
         self.preliminary_transform = nn.Linear(self.feat_in, self.feat_out)
-        self.geometry_add = nn.Sequential(nn.Linear(self.geometry_feat, 32), nn.LeakyReLU(0.02), nn.Linear(32, self.feat_out))
-        self.geometry_mult = nn.Sequential(nn.Linear(self.geometry_feat, 32), nn.LeakyReLU(0.02), nn.Linear(32, self.feat_out))
-        self.attention_net = nn.Sequential(nn.Linear(self.feat_concat, 128), nn.LeakyReLU(0.02), nn.Linear(128, self.N_heads))
+        self.geometry_add = nn.Sequential(nn.Linear(self.geometry_feat, 32), nn.LeakyReLU(0.02),
+                                          nn.Linear(32, self.feat_out))
+        self.geometry_mult = nn.Sequential(nn.Linear(self.geometry_feat, 32), nn.LeakyReLU(0.02),
+                                           nn.Linear(32, self.feat_out))
+        self.attention_net = nn.Sequential(nn.Linear(self.feat_concat, 128), nn.LeakyReLU(0.02),
+                                           nn.Linear(128, self.N_heads))
+        self.connectivity_net = nn.Sequential(nn.Linear(self.feat_concat, 128), nn.ReLU(),
+                                              nn.Linear(128, 64), nn.ReLU(), nn.Linear(64, 1))
 
     def forward(self, object_features, scene_geometry, d_max=10):
         # object_features is a list of tensors of D x 128 x 1 x 1
@@ -231,9 +247,11 @@ class GraphProposalNetwork(nn.Module):
 
         # visual_features = torch.cat((object_features, scene_geometry), 2)
 
-        adjacency_tensor = torch.zeros(len(object_features), d_max, d_max, self.N_heads)
+        # adjacency_tensor = torch.zeros(len(object_features), d_max, d_max, self.N_heads)
+        adjacency_tensor = torch.zeros(len(object_features), d_max, d_max)
 
-        embed_vertices = self.preliminary_transform(torch.cat([of.unsqueeze(0) for of in object_features]).view(self.opts.batch_size, 10, self.feat_in))
+        embed_vertices = self.preliminary_transform(
+            torch.cat([of.unsqueeze(0) for of in object_features]).view(self.opts.batch_size, 10, self.feat_in))
         embed_geometry_m = self.geometry_mult(scene_geometry)
         embed_geometry_a = self.geometry_add(scene_geometry)
 
@@ -255,8 +273,8 @@ class GraphProposalNetwork(nn.Module):
                 for j, vj in enumerate([v for k, v in enumerate(vlist) if k != i]):
                     compound_tensor = torch.cat((compound_tensor, torch.cat((vi, vj), dim=1)))
                 # compound_tensor = compound_tensor[1:]
-                edge_vals = self.attention_net(compound_tensor)
-                adjacency_tensor[batch_idx, i] = edge_vals
+                edge_vals = self.connectivity_net(compound_tensor)
+                adjacency_tensor[batch_idx, i] = edge_vals.transpose(1, 0)
 
         return adjacency_tensor
 
@@ -269,7 +287,7 @@ class ResnetBlock(nn.Module):
         self.relu = nn.ReLU()
 
     def forward(self, x, leakage=0.1):
-        return self.relu(self.norm(self.conv(x))) + leakage*x
+        return self.relu(self.norm(self.conv(x))) + leakage * x
 
 
 if __name__ is '__main__':
