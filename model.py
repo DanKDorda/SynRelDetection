@@ -239,7 +239,7 @@ class GraphProposalNetwork(nn.Module):
         self.attention_net = nn.Sequential(nn.Linear(self.feat_concat, 128), nn.LeakyReLU(0.02),
                                            nn.Linear(128, self.N_heads))
         self.connectivity_net = nn.Sequential(nn.Linear(self.feat_concat, 128), nn.ReLU(),
-                                              nn.Linear(128, 64), nn.ReLU(), nn.Linear(64, 1))
+                                              nn.Linear(128, 64), nn.ReLU(), nn.Linear(64, 10))
 
     def forward(self, object_features, scene_geometry, d_max=10):
         # object_features is a list of tensors of D x 128 x 1 x 1
@@ -257,6 +257,7 @@ class GraphProposalNetwork(nn.Module):
 
         embed_vertices = embed_vertices * embed_geometry_m
         embed_vertices = embed_vertices + embed_geometry_a
+        mega_compound_tensor = torch.zeros(len(object_features), d_max, self.feat_concat)
 
         for batch_idx, batch_vertices in enumerate(embed_vertices.split(1)):
             # batch_vertices.squeeze_(2)
@@ -273,9 +274,12 @@ class GraphProposalNetwork(nn.Module):
                 for j, vj in enumerate([v for k, v in enumerate(vlist) if k != i]):
                     compound_tensor = torch.cat((compound_tensor, torch.cat((vi, vj), dim=1)))
                 # compound_tensor = compound_tensor[1:]
-                edge_vals = self.connectivity_net(compound_tensor)
-                adjacency_tensor[batch_idx, i] = edge_vals.transpose(1, 0)
+                mega_compound_tensor[batch_idx] = compound_tensor
+                #edge_vals = self.connectivity_net(compound_tensor)
+                #adjacency_tensor[batch_idx, i] = edge_vals.transpose(1, 0)
 
+        big_edge = self.connectivity_net(mega_compound_tensor)
+        adjacency_tensor = big_edge.permute(0, 2, 1)
         return adjacency_tensor
 
 

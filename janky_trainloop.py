@@ -51,7 +51,7 @@ def get_dataloader(opts):
 if __name__ == "__main__":
     print('test mode')
 
-    config_path = os.path.join(os.getcwd(), 'options/debug_opts.yaml')
+    config_path = os.path.join(os.getcwd(), 'options/easy_bce_2000.yaml')
     with open(config_path) as stream:
         try:
             opts = edict(yaml.load(stream, Loader=yaml.FullLoader))

@@ -1,0 +1,24 @@
+batch_size: 4
+num_epochs: 100
+num_workers: 4
+scales: [1]
+
+data_root: '/Users/i517610/PycharmProjects/SynRelDetection/datasets/synthrel_2000_1/train'
+path: 'scene_info.json'
+
+method: 'supervised'
+lr: 0.001
+cuda: False
+
+FeatNet:
+  feat_out: 64
+
+GPN:
+  N_heads: 2
+  feat_in: 64
+
+logs:
+  loss_out: 8
+
+writer:
+  use_writer: True
