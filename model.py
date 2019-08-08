@@ -53,6 +53,8 @@ class SyntheticGraphLearner(nn.Module):
                                                                       d_max)
         self.gt_connectivity_matrix = utils.rel_list_to_connectivity_matrix(relationships, self.opts.batch_size,
                                                                             d_max)
+        self.image = image
+        self.objects = objects
         ct.mark('create gt adjacenecy end')
         ### MOVE TO GPU
         if self.opts.cuda:
@@ -172,6 +174,15 @@ class SyntheticGraphLearner(nn.Module):
     def get_loss(self):
         return self.loss.detach().item()
 
+    def get_image_output(self):
+        sv = utils.SceneVisualiser()
+
+        connec = torch.zeros_like(self.connectivity_matrix)
+        connec.scatter_(2, torch.argmax(self.connectivity_matrix, dim=2, keepdim=True), 1)
+        sv.visualise(self.image[0], self.objects[0], connec[0])
+
+        return sv.scene
+
 
 class FeatureNet(nn.Module):
     def __init__(self, opts):
@@ -275,8 +286,8 @@ class GraphProposalNetwork(nn.Module):
                     compound_tensor = torch.cat((compound_tensor, torch.cat((vi, vj), dim=1)))
                 # compound_tensor = compound_tensor[1:]
                 mega_compound_tensor[batch_idx] = compound_tensor
-                #edge_vals = self.connectivity_net(compound_tensor)
-                #adjacency_tensor[batch_idx, i] = edge_vals.transpose(1, 0)
+                # edge_vals = self.connectivity_net(compound_tensor)
+                # adjacency_tensor[batch_idx, i] = edge_vals.transpose(1, 0)
 
         big_edge = self.connectivity_net(mega_compound_tensor)
         adjacency_tensor = big_edge.permute(0, 2, 1)
@@ -301,6 +312,7 @@ if __name__ is '__main__':
     import os.path as osp
     import torchvision.transforms as T
     from PIL import Image
+    import janky_trainloop
 
 
     def peek_at_im(tensor):
@@ -308,15 +320,23 @@ if __name__ is '__main__':
 
 
     # open an image and its annotations
-    data_root = '/Users/i517610/PycharmProjects/SynRelDetection/datasets/synthrel1'
+    data_root = '/Users/i517610/PycharmProjects/SynRelDetection/datasets/synthrel_2000_1/train'
     annotations = json.load(open(osp.join(data_root, 'scene_info.json')))
     lucky_idx = np.random.choice(len(annotations))
 
-    im = Image.open(osp.join(data_root, str(lucky_idx) + '.jpg'))
+    im = Image.open(osp.join(data_root, 'images', str(lucky_idx) + '.jpg'))
     transform = T.Compose([T.ToTensor()])
     im_torch = transform(im)
     im_torch = im_torch.unsqueeze(0)
     lucky_annotation = annotations[lucky_idx]
+    data = {'visual': im_torch,
+            'objects': [lucky_annotation['objects']],
+            'relationships': [lucky_annotation['relationships']]}
 
-    model = SyntheticGraphLearner()
-    model.forward([im_torch, lucky_annotation])
+    opts = janky_trainloop.get_opts()
+    opts.batch_size = 1
+    model = SyntheticGraphLearner(opts)
+    model.forward(data)
+
+    img = model.get_image_output()
+    Image.fromarray(img).show()

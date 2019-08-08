@@ -36,7 +36,17 @@ def main(opts):
                 loss = trainer.get_loss()
                 if opts.writer.use_writer:
                     writer.add_scalar('supervised l1 loss', loss, global_step=current_iter)
+
+                    graph_im = trainer.get_image_output()
+                    writer.add_image('connectivity_graph', graph_im, current_iter)
+
                 tqdm.tqdm.write(str(loss))
+
+        if current_iter % opts.logs.val == 0:
+            trainer.eval()
+            for data in tqdm.tqdm(dl_val):
+                pass
+            trainer.train()
 
 
 def get_dataloader(opts):
@@ -48,10 +58,7 @@ def get_dataloader(opts):
     return dl
 
 
-if __name__ == "__main__":
-    print('test mode')
-
-    config_path = os.path.join(os.getcwd(), 'options/easy_bce_2000.yaml')
+def get_opts(config_path=os.path.join(os.getcwd(), 'options/debug_opts.yaml')):
     with open(config_path) as stream:
         try:
             opts = edict(yaml.load(stream, Loader=yaml.FullLoader))
@@ -59,6 +66,14 @@ if __name__ == "__main__":
             print(exc)
             sys.exit(0)
 
+    return opts
+
+
+if __name__ == "__main__":
+    print('test mode')
+
+    cp = os.path.join(os.getcwd(), 'options/easy_bce_2000.yaml')
+    opts = get_opts(cp)
     print('options acquired')
 
     main(opts)
