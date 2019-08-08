@@ -19,6 +19,7 @@ class SyntheticGraphLearner(nn.Module):
         self.connectivity_matrix = torch.LongTensor()
         self.gt_connectivity_matrix = torch.LongTensor()
         self.predicted_image = torch.FloatTensor()
+        self.eval_dict = {'TP': 0, 'FP': 0, 'TN': 0, 'FN': 0}
 
         # Define networks
         self.feature_net = FeatureNet(opts)
@@ -90,10 +91,15 @@ class SyntheticGraphLearner(nn.Module):
         ct.mark('get adjacency')
         self.connectivity_matrix = self.graph_proposal_net(vertex_feature_list, geometry_tensor)
         ct.mark('get adjacency end')
+
+        with torch.no_grad():
+            self.connectivity_argmaxed = torch.zeros_like(self.connectivity_matrix)
+            self.connectivity_argmaxed.scatter_(2, torch.argmax(self.connectivity_matrix, dim=2, keepdim=True), 1)
         # with torch.no_grad():
         #     re_list = utils.adjacency_tensor_to_rel_list(self.adjacency_tensor)
         # print(ct)
         if self.method == 'unsupervised':
+            raise NotImplementedError('haha fool')
             # propose image for missing boy
             predicted_image = self.final_predictor(vertex_feature_list, self.adjacency_tensor, chosen_idx)
             self.predicted_image = predicted_image
@@ -118,6 +124,33 @@ class SyntheticGraphLearner(nn.Module):
             self.supervised_optimizer.step()
         else:
             raise NotImplementedError('only supervised implemented')
+
+    def evaluate(self, input_data):
+        self.forward(input_data)
+
+        TP = torch.sum(
+            torch.where((self.gt_connectivity_matrix == 1) * (self.connectivity_argmaxed == 1), torch.tensor(1),
+                        torch.tensor(0)))
+        FP = torch.sum(
+            torch.where((self.gt_connectivity_matrix == 0) * (self.connectivity_argmaxed == 1), torch.tensor(1),
+                        torch.tensor(0)))
+        TN = torch.sum(
+            torch.where((self.gt_connectivity_matrix == 0) * (self.connectivity_argmaxed == 0), torch.tensor(1),
+                        torch.tensor(0)))
+        FN = torch.sum(
+            torch.where((self.gt_connectivity_matrix == 1) * (self.connectivity_argmaxed == 0), torch.tensor(1),
+                        torch.tensor(0)))
+
+        self.eval_dict['TP'] += TP.item()
+        self.eval_dict['FP'] += FP.item()
+        self.eval_dict['TN'] += TN.item()
+        self.eval_dict['FN'] += FN.item()
+
+    def get_eval_dict(self):
+        return self.eval_dict
+
+    def clear_eval_dict(self):
+        self.eval_dict = {'TP': 0, 'FP': 0, 'TN': 0, 'FN': 0}
 
     @staticmethod
     def masker(image_tensor, object_batch):
@@ -176,10 +209,7 @@ class SyntheticGraphLearner(nn.Module):
 
     def get_image_output(self):
         sv = utils.SceneVisualiser()
-
-        connec = torch.zeros_like(self.connectivity_matrix)
-        connec.scatter_(2, torch.argmax(self.connectivity_matrix, dim=2, keepdim=True), 1)
-        sv.visualise(self.image[0], self.objects[0], connec[0])
+        sv.visualise(self.image[0], self.objects[0], self.connectivity_argmaxed[0])
 
         return sv.scene
 
@@ -320,7 +350,7 @@ if __name__ is '__main__':
 
 
     # open an image and its annotations
-    data_root = '/Users/i517610/PycharmProjects/SynRelDetection/datasets/synthrel_2000_1/train'
+    data_root = '/Users/i517610/PycharmProjects/SynRelDetection/datasets/sr3/train'
     annotations = json.load(open(osp.join(data_root, 'scene_info.json')))
     lucky_idx = np.random.choice(len(annotations))
 
@@ -336,7 +366,8 @@ if __name__ is '__main__':
     opts = janky_trainloop.get_opts()
     opts.batch_size = 1
     model = SyntheticGraphLearner(opts)
-    model.forward(data)
+    model.eval()
+    model.evaluate(data)
 
     img = model.get_image_output()
     Image.fromarray(img).show()

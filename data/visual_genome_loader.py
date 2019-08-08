@@ -11,11 +11,11 @@ from torchvision import transforms
 
 class VG_dataset(data.Dataset):
 
-    def __init__(self, ds_opts):
+    def __init__(self, ds_opts, split='train'):
         self.opts = ds_opts
 
         ## bunch of paths
-        self.data_root = self.opts.data_root
+        self.data_root = os.path.join(self.opts.data_root, split)
         self.image_root = osp.join(self.data_root, 'images')
         annotation_pth = osp.join(self.data_root, self.opts.path)
 
