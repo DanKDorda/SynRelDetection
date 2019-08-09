@@ -1,9 +1,9 @@
 batch_size: 4
-num_epochs: 60
+num_epochs: 100
 num_workers: 4
 scales: [1]
 
-data_root: '/Users/i517610/PycharmProjects/SynRelDetection/datasets/sr3/'
+data_root: '/Users/i517610/PycharmProjects/SynRelDetection/datasets/sr4/'
 path: 'scene_info.json'
 
 method: 'supervised'
@@ -18,8 +18,9 @@ GPN:
   feat_in: 64
 
 logs:
-  loss_out: 20
-  val: 80
+  loss_out: 50
+  im_out: 100
+  val: 2
 
 writer:
   use_writer: True

@@ -26,31 +26,34 @@ def main(opts):
         writer.add_text('options', pformat(opts), 0)
 
     for epoch in range(opts.num_epochs):
-        for data in tqdm.tqdm(dl):
-            trainer.forward(data)
+        tqdm.tqdm.write(f'Starting epoch: {epoch}')
+        # fw
+        for data_item in tqdm.tqdm(dl):
+            trainer.forward(data_item)
             trainer.compute_loss()
             trainer.optimize_params()
             current_iter += 1
 
+            # logging
             if current_iter % opts.logs.loss_out == 0:
                 loss = trainer.get_loss()
+                tqdm.tqdm.write(str(round(loss, 2)))
                 if opts.writer.use_writer:
                     writer.add_scalar('main supervised loss', loss, global_step=current_iter)
+                    if current_iter % opts.logs.im_out == 0:
+                        graph_im = trainer.get_image_output()
+                        writer.add_image('connectivity_graph', torch.tensor(graph_im), current_iter, dataformats='HWC')
 
-                    graph_im = trainer.get_image_output()
-                    writer.add_image('connectivity_graph', torch.tensor(graph_im), current_iter, dataformats='HWC')
-
-                tqdm.tqdm.write(str(round(loss, 2)))
-
-        if current_iter % opts.logs.val == 0:
+        # val loop
+        if epoch % opts.logs.val == 0:
             trainer.eval()
             trainer.clear_eval_dict()
             val_iter = 0
-            for data in tqdm.tqdm(dl_val):
-                trainer.evaluate(data)
+            for data_item in tqdm.tqdm(dl_val):
+                trainer.evaluate(data_item)
                 if val_iter < 5:
                     graph_im = trainer.get_image_output()
-                    writer.add_image('connectivity_graph/val', torch.tensor(graph_im), current_iter, dataformats='HWC')
+                    writer.add_image(f'val_graph/im_{val_iter}', torch.tensor(graph_im), current_iter, dataformats='HWC')
                 val_iter += 1
             eval_result = trainer.get_eval_dict()
             sens = eval_result['TP'] / (eval_result['TP'] + eval_result['FN'])
