@@ -4,6 +4,7 @@ import os.path as osp
 from PIL import Image
 import json
 
+import numpy as np
 import torch
 import torch.utils.data as data
 from torchvision import transforms
@@ -13,6 +14,7 @@ class VG_dataset(data.Dataset):
 
     def __init__(self, ds_opts, split='train'):
         self.opts = ds_opts
+        self.split = split
 
         ## bunch of paths
         self.data_root = os.path.join(self.opts.data_root, split)
@@ -31,6 +33,9 @@ class VG_dataset(data.Dataset):
             normalise
         ])
 
+        # define limiter list
+        self.limiter_list = json.load(open(osp.join(self.data_root, 'limiter_list.json')))
+
     def __getitem__(self, idx):
         # randomise the scale
         # TODO:randomise scales
@@ -44,9 +49,16 @@ class VG_dataset(data.Dataset):
         img = Image.open(image_path)
         img = self.transform(img)
 
+        # DO THE LIMITING
+        num_rels = 10 #len(img_info['relationships'])
+        naughty_list = self.limiter_list[idx]
+        naughty_list = naughty_list[:int(np.floor(self.opts.limiter.fraction_dropped * num_rels))]
+        if self.split == 'train':
+            [img_info['relationships'].pop(bad_idx) for bad_idx in sorted(naughty_list, key=lambda x:-x)]
+
         # img_info: dict
         # keys: ['id', 'path', 'height', 'width', 'regions', 'objects', 'relationships']
-        return {'path': image_path, 'visual': img, 'image_info': img_info}
+        return {'path': image_path, 'visual': img, 'image_info': img_info, 'indices_removed': naughty_list}
 
     def __len__(self):
         return len(self.annotations)
@@ -65,6 +77,7 @@ def custom_collate(batch, use_shared_memory=False):
 
     out['objects'] = [b['image_info']['objects'] for b in batch]
     out['relationships'] = [b['image_info']['relationships'] for b in batch]
+    out['indices_removed'] = [b['indices_removed'] for b in batch]
     return out
 
 
@@ -74,3 +87,36 @@ class CustomDataLoader(data.DataLoader):
 
 class CustomIter(data.dataloader._DataLoaderIter):
     pass
+
+
+if __name__ == '__main__':
+    import sys
+    from pprint import pprint
+    from easydict import EasyDict as edict
+    from janky_trainloop import get_dataloader
+    import yaml
+    print('TEST MODE ENTERED')
+
+    # get a fake config file
+    config_pth = '/Users/i517610/PycharmProjects/SynRelDetection/options/debug_opts.yaml'
+
+    with open(config_pth) as stream:
+        try:
+            opts = edict(yaml.load(stream, Loader=yaml.FullLoader))
+        except yaml.YAMLError as exc:
+            print(exc)
+            sys.exit(0)
+
+    print('config obtained!')
+    pprint(opts)
+
+    #ds = VG_dataset(opts)
+    #item1 = VG_dataset[3]
+
+    dl = get_dataloader(opts)
+
+    for i, item in enumerate(dl[0]):
+        if i > 3:
+            break
+
+        print(item)

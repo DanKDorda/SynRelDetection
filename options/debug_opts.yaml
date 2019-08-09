@@ -28,3 +28,6 @@ logs:
 
 writer:
   use_writer: False
+
+limiter:
+  fraction_dropped: 0.50
