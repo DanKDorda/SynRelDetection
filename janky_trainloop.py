@@ -5,6 +5,7 @@ import yaml
 import functools
 import tqdm
 from pprint import pformat
+import argparse
 
 import torch
 import torch.nn as nn
@@ -44,6 +45,10 @@ def main(opts):
                         graph_im = trainer.get_image_output()
                         writer.add_image('connectivity_graph', torch.tensor(graph_im), current_iter, dataformats='HWC')
 
+        trainer.scheduler.step()
+        if epoch % opts.train.schedule.lr_step_every == 0:
+            tqdm.tqdm.write(f'lr set to: {trainer.scheduler.get_lr()}')
+
         # val loop
         if epoch % opts.logs.val == 0:
             trainer.eval()
@@ -51,15 +56,16 @@ def main(opts):
             val_iter = 0
             for data_item in tqdm.tqdm(dl_val):
                 trainer.evaluate(data_item)
-                if val_iter < 5:
+                if val_iter < 5 and opts.writer.use_writer:
                     graph_im = trainer.get_image_output()
                     writer.add_image(f'val_graph/im_{val_iter}', torch.tensor(graph_im), current_iter, dataformats='HWC')
                 val_iter += 1
             eval_result = trainer.get_eval_dict()
             sens = eval_result['TP'] / (eval_result['TP'] + eval_result['FN'])
             spec = eval_result['TN'] / (eval_result['TN'] + eval_result['FP'])
-            writer.add_scalar('val/sensitivity', sens, current_iter)
-            writer.add_scalar('val/specificity', spec, current_iter)
+            if opts.writer.use_writer:
+                writer.add_scalar('val/sensitivity', sens, current_iter)
+                writer.add_scalar('val/specificity', spec, current_iter)
             tqdm.tqdm.write(
                 f'TP: {eval_result["TP"]}, TN: {eval_result["TN"]}, FP: {eval_result["FP"]}, FN: {eval_result["FN"]}')
             trainer.train()
@@ -91,10 +97,18 @@ def get_opts(config_path=os.path.join(os.getcwd(), 'options/debug_opts.yaml')):
 
 
 if __name__ == "__main__":
-    print('test mode')
+    # print('test mode')
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--debug", action="store_true")
+    args = ap.parse_args()
+    print('args: \n', args)
+    if args.debug:
+        opts = get_opts()
+    else:
+        cp = os.path.join(os.getcwd(), 'options/easy_bce_2000.yaml')
+        opts = get_opts(cp)
 
-    cp = os.path.join(os.getcwd(), 'options/easy_bce_2000.yaml')
-    opts = get_opts(cp)
     print('options acquired')
+    print('================================')
 
     main(opts)

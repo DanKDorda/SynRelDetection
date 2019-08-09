@@ -1,14 +1,18 @@
 batch_size: 4
-num_epochs: 500
-num_workers: 2
+num_epochs: 100
+num_workers: 4
 scales: [1]
 
-data_root: '/Users/i517610/PycharmProjects/SynRelDetection/datasets/synthrel1'
+data_root: '/Users/i517610/PycharmProjects/SynRelDetection/datasets/debug_sr/'
 path: 'scene_info.json'
 
-method: 'supervised'
-lr: 0.001
-cuda: False
+train:
+  method: 'supervised'
+  lr: 0.001
+  cuda: False
+  schedule:
+    lr_step_every: 2
+    gamma: 0.1
 
 FeatNet:
   feat_out: 64
@@ -18,7 +22,9 @@ GPN:
   feat_in: 64
 
 logs:
-  loss_out: 8
+  loss_out: 50
+  im_out: 100
+  val: 2
 
 writer:
-  use_writer: True
+  use_writer: False

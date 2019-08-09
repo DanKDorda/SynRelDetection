@@ -11,7 +11,8 @@ class SyntheticGraphLearner(nn.Module):
     def __init__(self, opts):
         super(SyntheticGraphLearner, self).__init__()
         self.opts = opts
-        self.method = opts.method
+        self.method = opts.train.method
+        self.use_cuda = self.opts.train.cuda
 
         # Declare output properties
         self.adjacency_tensor = torch.FloatTensor()
@@ -26,14 +27,18 @@ class SyntheticGraphLearner(nn.Module):
         self.graph_proposal_net = GraphProposalNetwork(opts)
         self.final_predictor = None
 
-        # Define optimizers
-        if self.opts.cuda:
+        if self.use_cuda:
             self.feature_net.cuda()
             self.graph_proposal_net.cuda()
             # self.final_predictor.cuda()
 
+        # Define optimizers
         param_list = list(self.feature_net.parameters()) + list(self.graph_proposal_net.parameters())
-        self.supervised_optimizer = torch.optim.Adam(param_list, lr=opts.lr)
+        self.supervised_optimizer = torch.optim.Adam(param_list, lr=self.opts.train.lr)
+
+        self.scheduler = torch.optim.lr_scheduler.StepLR(self.supervised_optimizer,
+                                                         self.opts.train.schedule.lr_step_every,
+                                                         gamma=self.opts.train.schedule.gamma)
 
         # Define loss functions
         self.l1_critetion = nn.L1Loss()
@@ -58,7 +63,7 @@ class SyntheticGraphLearner(nn.Module):
         self.objects = objects
         ct.mark('create gt adjacenecy end')
         ### MOVE TO GPU
-        if self.opts.cuda:
+        if self.use_cuda:
             self.gt_adjacency_tensor.cuda()
             image.cuda()
 
@@ -146,6 +151,9 @@ class SyntheticGraphLearner(nn.Module):
         self.eval_dict['TN'] += TN.item()
         self.eval_dict['FN'] += FN.item()
 
+    def scheduler_step(self):
+        self.scheduler.step()
+
     def get_eval_dict(self):
         return self.eval_dict
 
@@ -173,7 +181,7 @@ class SyntheticGraphLearner(nn.Module):
         # list option
         imagelet_batch = []
 
-        if self.opts.cuda:
+        if self.use_cuda:
             imagelet_base = torch.cuda.FloatTensor
         else:
             imagelet_base = torch.FloatTensor
@@ -194,7 +202,7 @@ class SyntheticGraphLearner(nn.Module):
         # w = 32
         # imagelets = torch.zeros(self.opts.batch_size,D_max, c, w, h)
         #
-        # if self.opts.cuda:
+        # if self.use_cuda:
         #     imagelets.cuda()
         #
         # for i, image_annotation in enumerate(annotations):
