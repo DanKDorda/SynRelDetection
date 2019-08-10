@@ -99,14 +99,14 @@ def get_opts(config_path=os.path.join(os.getcwd(), 'options/debug_opts.yaml')):
 if __name__ == "__main__":
     # print('test mode')
     ap = argparse.ArgumentParser()
-    ap.add_argument("--debug", action="store_true")
+    ap.add_argument("--no_debug", action="store_true")
     args = ap.parse_args()
     print('args: \n', args)
-    if args.debug:
-        opts = get_opts()
-    else:
+    if args.no_debug:
         cp = os.path.join(os.getcwd(), 'options/easy_bce_2000.yaml')
         opts = get_opts(cp)
+    else:
+        opts = get_opts()
 
     print('options acquired')
     print('================================')

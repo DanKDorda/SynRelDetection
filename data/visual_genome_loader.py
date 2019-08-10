@@ -50,15 +50,17 @@ class VG_dataset(data.Dataset):
         img = self.transform(img)
 
         # DO THE LIMITING
-        num_rels = 10 #len(img_info['relationships'])
+        num_rels = 10  # len(img_info['relationships'])
         naughty_list = self.limiter_list[idx]
         naughty_list = naughty_list[:int(np.floor(self.opts.limiter.fraction_dropped * num_rels))]
+        naughty_adjacency_idcs = torch.zeros(num_rels)
         if self.split == 'train':
-            [img_info['relationships'].pop(bad_idx) for bad_idx in sorted(naughty_list, key=lambda x:-x)]
+            for bad_idx in sorted(naughty_list, key=lambda x: -x):
+                naughty_adjacency_idcs[img_info['relationships'].pop(bad_idx)[0]] = 1
 
         # img_info: dict
         # keys: ['id', 'path', 'height', 'width', 'regions', 'objects', 'relationships']
-        return {'path': image_path, 'visual': img, 'image_info': img_info, 'indices_removed': naughty_list}
+        return {'path': image_path, 'visual': img, 'image_info': img_info, 'indices_removed': naughty_adjacency_idcs}
 
     def __len__(self):
         return len(self.annotations)
@@ -73,11 +75,17 @@ def custom_collate(batch, use_shared_memory=False):
         storage = batch[0]['visual'].storage()._new_shared(numel)
         out_tensor = batch[0]['visual'].new(storage)
         torch.stack([b['visual'] for b in batch], 0, out=out_tensor)
-    out['visual'] = out_tensor
 
+        numel_2 = sum([x['indices_removed'].numel() for x in batch])
+        storage_2 = batch[0]['indices_removed'].storage()._new_shared(numel_2)
+        index_tensor = batch[0]['indices_removed'].new(storage_2)
+        torch.stack([b['indices_removed'] for b in batch], 0, out=index_tensor)
+
+    out['visual'] = out_tensor
+    out['indices_removed'] = index_tensor
     out['objects'] = [b['image_info']['objects'] for b in batch]
     out['relationships'] = [b['image_info']['relationships'] for b in batch]
-    out['indices_removed'] = [b['indices_removed'] for b in batch]
+
     return out
 
 
@@ -95,6 +103,7 @@ if __name__ == '__main__':
     from easydict import EasyDict as edict
     from janky_trainloop import get_dataloader
     import yaml
+
     print('TEST MODE ENTERED')
 
     # get a fake config file
@@ -110,8 +119,8 @@ if __name__ == '__main__':
     print('config obtained!')
     pprint(opts)
 
-    #ds = VG_dataset(opts)
-    #item1 = VG_dataset[3]
+    # ds = VG_dataset(opts)
+    # item1 = VG_dataset[3]
 
     dl = get_dataloader(opts)
 
