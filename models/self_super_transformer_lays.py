@@ -12,10 +12,10 @@ class FinalPredictor(nn.Module):
         super(FinalPredictor, self).__init__()
         self.opts = opts
         self.n_proposals = 4
-        self.proposed_objects = torch.empty(4, self.n_proposals, 3, 96, 96)
-        self.im_db = ProposalDs(opts)
 
         # NETWORK STRUCTURE
+        self.preliminary_transform = nn.Linear(3, 256)
+
         self.feat_out = 256
         # self.final_layer = nn.Linear(256, self.feat_out)
         n_transforms = self.opts.FP.n_transforms
@@ -24,51 +24,46 @@ class FinalPredictor(nn.Module):
         dropout = 0.1
         self.feat_transformer_blocks = nn.ModuleList([TransformerBlock(hidden, n_heads, hidden*4, dropout) for _ in range(n_transforms)])
 
-    def generate_image_proposals(self, objects, chosen_idx):
-        chosen_obj_orientation = [objects[i][chosen_idx[i]]['orientation'] for i in range(self.opts.batch_size)]
-
-        # get the original image
-
-        # generate four complimentary orientations, 90 degrees apart with random noise
-
-        # obtain the corresponding images
-        # from an image DB
-        # by generating them with open CV
-        n_proposals = 4
-        proposals = torch.empty(self.opts.batch_size, n_proposals, 3, 96, 96)
-        for i in range(self.opts.batch_size):
-            cannon_orientation = chosen_obj_orientation[i]
-            goal_orientation = cannon_orientation
-            for j in range(n_proposals):
-                goal_orientation = (goal_orientation + np.pi / 2) % (np.pi * 2)
-                go_deg = int(goal_orientation / np.pi * 180)
-                # assert 0 <= go_deg < 360, 'goal orientation out of bounds'
-                proposals[i, j] = self.im_db[go_deg]
-
-        self.proposed_objects = proposals
-        if self.opts.train.cuda:
-            self.proposed_objects.cuda()
-        return proposals
-
-    def forward(self, feature_list, adjacency, chosen_idx):
+    def forward(self, position_tensor, orientation_tensor, adjacency_tensor, chosen_idx, proposals):
+        """
+        :param position_tensor:
+        :param orientation_tensor:
+        :param adjacency_tensor:
+        :param chosen_idx:
+        :param proposals: batch x n_props x 1 = (4, 4, 1)
+        :param target:
+        :return: pre_softmax_scores: batch, n_props, 1
+        """
         # select the relevant relationship row
-        relevant_relationships = adjacency[chosen_idx]
-        prop_object_feats = ...
-
+        relevant_relationships = adjacency_tensor[:, chosen_idx]
+        # relevant_relationships.unsqueeze_(3)
         # use a TRANSFORMER to create an attention pooling thing which creates one output vector for all the connected components
         # the mask is the weight vector from the adjacency
         n_objects = 10
-        mask = torch.zeros(self.opts.batch_size, 10)
-        scoring_vector = torch.cat(feature_list, dim=1)
+
+        # size: batch x n_object x 3
+        full_features = torch.cat([position_tensor, orientation_tensor], dim=2)
+        # obfuscate the chosen angle
+        full_features[:, chosen_idx, 2] = 0
+        full_features = self.preliminary_transform(full_features)
+
+        mask = torch.ones(self.opts.batch_size, n_objects)
+        mask[:, chosen_idx] = 0
+
+        # where to use relevant_relationships???
+
+        scoring_vector = full_features #torch.empty(self.opts.batch_size, )
+
         for transformer in self.feat_transformer_blocks:
-            scoring_vector = transformer.forward(scoring_vector, mask)
-            #scoring_vector = self.func(adjacency, feature_list, prop_object_feats)
-        # for every pair of connected features
-        # make the concat feature
-        # use the propagator
+            scoring_vector = transformer.forward(scoring_vector, None)
 
         # size: batch x n_proposal x 1
-        pre_softmax_scores = scoring_vector * self.proposal_features
+        target_pos = position_tensor[:, chosen_idx].unsqueeze(1)
+        target_pos = target_pos.repeat(1, 4, 1)
+        embed_proposals = self.preliminary_transform(torch.cat([target_pos, proposals], dim=2))
+        important_scores = scoring_vector[:, chosen_idx].unsqueeze(1).transpose(-2, -1)
+        embeddings = embed_proposals
+        pre_softmax_scores = torch.matmul(embeddings, important_scores)/math.sqrt(embeddings.size(-1))
         return pre_softmax_scores
 
 

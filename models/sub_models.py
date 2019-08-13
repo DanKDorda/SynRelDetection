@@ -59,19 +59,19 @@ class GraphProposalNetwork(nn.Module):
         self.N_heads = opts.GPN.N_heads
         self.feat_in = 3 # opts.GPN.feat_in
         self.geometry_feat = 4
-        self.feat_out = 16
-        self.feat_concat = 6 #self.feat_out * 2
+        self.feat_out = 64
+        self.feat_concat = self.feat_out * 2
 
-        self.preliminary_transform = nn.Linear(self.feat_in, self.feat_out)
-        self.connectivity_net = nn.Sequential(nn.Linear(self.feat_concat, 32), nn.ReLU(),
-                                              nn.Linear(32, 8), nn.ReLU(), nn.Linear(8, 1))
+        self.preliminary_transform = nn.Sequential(nn.Linear(self.feat_in, 32), nn.LeakyReLU(0.2), nn.Linear(32, self.feat_out))
+        self.connectivity_net = nn.Sequential(nn.Linear(self.feat_concat, 32), nn.LeakyReLU(0.2),
+                                              nn.Linear(32, 8), nn.LeakyReLU(0.2), nn.Linear(8, 1))
 
     def forward(self, position_tensor, orientation_tensor, d_max=10):
         # inputs are the object positions and orientations
 
         # size: batch x n_obj x 3
         full_feature_tensor = torch.cat([position_tensor, orientation_tensor], dim=2)
-        # full_feature_tensor = self.preliminary_transform(full_feature_tensor)
+        full_feature_tensor = self.preliminary_transform(full_feature_tensor)
 
         # create pairwise feature groupings
         mega_compound_tensor = torch.empty(self.opts.batch_size, 10, 10, self.feat_concat)

@@ -1,5 +1,3 @@
-comment: 'graph proposal model sized increased. More pre-transform, more hidden units'
-
 batch_size: 4
 num_epochs: 100
 num_workers: 4
@@ -9,7 +7,7 @@ data_root: '/Users/i517610/PycharmProjects/SynRelDetection/datasets/sr4/'
 path: 'scene_info.json'
 
 train:
-  method: 'supervised'
+  method: 'unsupervised'
   lr: 0.001
   cuda: False
   schedule:
@@ -23,6 +21,9 @@ GPN:
   N_heads: 2
   feat_in: 64
 
+FP:
+  n_transforms: 2
+
 logs:
   loss_out: 50
   im_out: 100
@@ -32,4 +33,4 @@ writer:
   use_writer: True
 
 limiter:
-  fraction_dropped: 0.00
+  fraction_dropped: 0.0

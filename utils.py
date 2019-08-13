@@ -56,9 +56,21 @@ def get_positions_and_orients(objects, batch_size=4, num_objects=10):
     return pos, ori
 
 
-def propose_orientations(orientations, chosen_idx):
-    
-    return orientations[chosen_idx]
+def propose_orientations(orientations, chosen_idx, batch_size=4):
+    n_proposals = 4
+    orientation_proposals = torch.empty(batch_size, n_proposals, 1)
+    chosen_orientations = orientations[:, chosen_idx]
+
+    for i in range(n_proposals):
+        orientation_proposals[:, i] = chosen_orientations
+        chosen_orientations += np.pi/2
+        chosen_orientations = chosen_orientations % (2*np.pi)
+    torch.randperm(n_proposals)
+
+    rand_perm = torch.randperm(n_proposals)
+    orientation_proposals = orientation_proposals[:, rand_perm]
+    target_idx = list(rand_perm).index(3)
+    return orientation_proposals, torch.tensor(target_idx, dtype=torch.long)
 
 
 class SceneVisualiser:

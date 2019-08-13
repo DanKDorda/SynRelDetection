@@ -103,13 +103,16 @@ if __name__ == "__main__":
     args = ap.parse_args()
     print('args: \n', args)
     if args.no_debug:
-        cp = os.path.join(os.getcwd(), 'options/easy_bce_2000.yaml')
+        if args.supervised:
+            cp = os.path.join(os.getcwd(), 'options/easy_bce_2000.yaml')
+        else:
+            cp = os.path.join(os.getcwd(), 'options/train_unsupervised.yaml')
         opts = get_opts(cp)
     else:
         if args.supervised:
             opts = get_opts()
         else:
-            opts = get_opts(os.path.join(os.getcwd(), 'options/debug_opts.yaml'))
+            opts = get_opts(os.path.join(os.getcwd(), 'options/debug_unsupervised.yaml'))
 
     print('options acquired')
     print('================================')

@@ -26,6 +26,8 @@ class SyntheticGraphLearner(nn.Module):
         self.gt_connectivity_matrix = torch.LongTensor()
         self.predicted_image = torch.FloatTensor()
         self.eval_dict = {'TP': 0, 'FP': 0, 'TN': 0, 'FN': 0}
+        self.predicted_orientation = torch.empty(4, 4, 1)
+        self.target = torch.LongTensor()
 
         # Define networks
         self.graph_proposal_net = GraphProposalNetwork(opts)
@@ -48,7 +50,7 @@ class SyntheticGraphLearner(nn.Module):
         # now for the unsupervised part...
         if self.method == 'unsupervised':
             self.unsupervised_optimizer = torch.optim.Adam(param_list + list(self.final_predictor.parameters()),
-                                                       lr=self.opts.train.lr)
+                                                           lr=self.opts.train.lr)
         # TODO: scheduler
         # Define loss functions
         self.l1_critetion = nn.L1Loss()
@@ -78,7 +80,7 @@ class SyntheticGraphLearner(nn.Module):
             orientation_tensor.cuda()
 
         if self.method == 'unsupervised':
-            #image_masked, chosen_idx = self.masker(self.image, self.objects)
+            # image_masked, chosen_idx = self.masker(self.image, self.objects)
             chosen_idx = 3
 
         # proposal of edges from object features and geometry
@@ -91,14 +93,19 @@ class SyntheticGraphLearner(nn.Module):
         if self.method == 'unsupervised':
             # propose image for missing boy
             # proposals = self.final_predictor.generate_image_proposals(self.objects, chosen_idx)
-            proposals = utils.propose_orientations(orientation_tensor, chosen_idx)
+            proposals, self.target = utils.propose_orientations(orientation_tensor, chosen_idx)
             # proposal_feats = self.feature_net(proposals)
-            # predicted_image = self.final_predictor(vertex_feature_list, self.adjacency_tensor, chosen_idx)
-            # self.predicted_image = predicted_image
+            self.predicted_orientation = self.final_predictor(position_tensor, orientation_tensor, self.connectivity_matrix,
+                                                   chosen_idx, proposals)
 
     def compute_loss(self):
         if self.method == 'supervised':
-            # self.loss = 0 #self.l1_critetion(self.adjacency_tensor, self.gt_adjacency_tensor) * 0.1
+            self.loss = torch.tensor([0.0], dtype=torch.float32) #self.l1_critetion(self.adjacency_tensor, self.gt_adjacency_tensor) * 0.1
+
+            # l1_loss = self.l1_critetion(self.connectivity_matrix, self.gt_connectivity_matrix)
+            # print(l1_loss.dtype)
+            # print(self.loss.dtype)
+            # self.loss += l1_loss
 
             ce_loss = 0
             bad_idcs = self.indices_removed
@@ -124,8 +131,10 @@ class SyntheticGraphLearner(nn.Module):
             #     ce_loss += self.softmax_criterion(row, target)
             self.loss = ce_loss
         elif self.method == 'unsupervised':
-            #self.loss = self.l1_criterion(self.predicted_image, self.desired_out)
-            raise NotImplementedError('no unsupervised loss implemented')
+            # self.loss = self.l1_criterion(self.predicted_image, self.desired_out)
+            ce_loss_2 = self.softmax_criterion(self.predicted_orientation.squeeze(2), self.target.repeat(4))
+            self.loss = ce_loss_2
+            #raise NotImplementedError('no unsupervised loss implemented')
 
     def optimize_params(self):
         if self.method == 'supervised':
@@ -133,7 +142,10 @@ class SyntheticGraphLearner(nn.Module):
             self.loss.backward()
             self.supervised_optimizer.step()
         else:
-            raise NotImplementedError('only supervised implemented')
+            self.unsupervised_optimizer.zero_grad()
+            self.loss.backward()
+            self.unsupervised_optimizer.step()
+            #raise NotImplementedError('only supervised implemented')
 
     def evaluate(self, input_data):
         self.forward(input_data)
