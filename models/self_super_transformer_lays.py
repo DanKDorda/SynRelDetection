@@ -63,7 +63,7 @@ class FinalPredictor(nn.Module):
         embed_proposals = self.preliminary_transform(torch.cat([target_pos, proposals], dim=2))
         important_scores = scoring_vector[:, chosen_idx].unsqueeze(1).transpose(-2, -1)
         embeddings = embed_proposals
-        pre_softmax_scores = torch.matmul(embeddings, important_scores)/math.sqrt(embeddings.size(-1))
+        pre_softmax_scores = torch.matmul(embeddings, important_scores)#/math.sqrt(embeddings.size(-1))
         return pre_softmax_scores
 
 

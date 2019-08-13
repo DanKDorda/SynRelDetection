@@ -81,6 +81,7 @@ class SyntheticGraphLearner(nn.Module):
 
         if self.method == 'unsupervised':
             # image_masked, chosen_idx = self.masker(self.image, self.objects)
+            # chosen_idx = np.random.randint(0, 9)
             chosen_idx = 3
 
         # proposal of edges from object features and geometry

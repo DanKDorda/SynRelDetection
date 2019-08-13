@@ -22,6 +22,7 @@ FeatNet:
 GPN:
   N_heads: 2
   feat_in: 64
+  net_mode: 'complex'
 
 logs:
   loss_out: 50
