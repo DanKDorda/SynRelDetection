@@ -28,17 +28,17 @@ class SyntheticGraphLearner(nn.Module):
         self.eval_dict = {'TP': 0, 'FP': 0, 'TN': 0, 'FN': 0}
 
         # Define networks
-        self.feature_net = FeatureNet(opts)
         self.graph_proposal_net = GraphProposalNetwork(opts)
-        self.final_predictor = FinalPredictor(opts)
+        if self.method == 'unsupervised':
+            self.final_predictor = FinalPredictor(opts)
 
         if self.use_cuda:
-            self.feature_net.cuda()
             self.graph_proposal_net.cuda()
-            self.final_predictor.cuda()
+            if self.method == 'unsupervised':
+                self.final_predictor.cuda()
 
         # Define optimizers
-        param_list = list(self.feature_net.parameters()) + list(self.graph_proposal_net.parameters())
+        param_list = list(self.graph_proposal_net.parameters())
         self.supervised_optimizer = torch.optim.Adam(param_list, lr=self.opts.train.lr)
 
         self.scheduler = torch.optim.lr_scheduler.StepLR(self.supervised_optimizer,
@@ -46,7 +46,8 @@ class SyntheticGraphLearner(nn.Module):
                                                          gamma=self.opts.train.schedule.gamma)
 
         # now for the unsupervised part...
-        self.unsupervised_optimizer = torch.optim.Adam(param_list + list(self.feature_net.parameters()),
+        if self.method == 'unsupervised':
+            self.unsupervised_optimizer = torch.optim.Adam(param_list + list(self.final_predictor.parameters()),
                                                        lr=self.opts.train.lr)
         # TODO: scheduler
         # Define loss functions
@@ -66,46 +67,34 @@ class SyntheticGraphLearner(nn.Module):
                                                                       d_max)
         self.gt_connectivity_matrix = utils.rel_list_to_connectivity_matrix(self.relationships, self.opts.batch_size,
                                                                             d_max)
+
+        position_tensor, orientation_tensor = utils.get_positions_and_orients(self.objects)
+
         ### MOVE TO GPU
         if self.use_cuda:
             self.gt_adjacency_tensor.cuda()
             self.image.cuda()
+            position_tensor.cuda()
+            orientation_tensor.cuda()
 
         if self.method == 'unsupervised':
             #image_masked, chosen_idx = self.masker(self.image, self.objects)
             chosen_idx = 3
 
-        # find features from images -> list
-        imagelets_batched = self.get_imagelets(self.image, self.objects)
-
-        vertex_feature_list = [self.feature_net(imagelets) for imagelets in imagelets_batched]
-
         # proposal of edges from object features and geometry
-        geometry_tensor = torch.zeros(self.opts.batch_size, d_max, 4)
-
-        for i, img_obs in enumerate(self.objects):
-            for j, obj in enumerate(img_obs):
-                bb = obj['bbox']
-                mid_x = int((bb[0] + bb[1]) / 2)
-                mid_y = int((bb[2] + bb[3]) / 2)
-                size_x = abs(int((bb[0] - bb[1])))
-                size_y = abs(int((bb[2] - bb[3])))
-                geometry_tensor[i, j, :] = torch.tensor([mid_x, mid_y, size_x, size_y])
-
-        self.connectivity_matrix = self.graph_proposal_net(vertex_feature_list, geometry_tensor)
+        self.connectivity_matrix = self.graph_proposal_net(position_tensor, orientation_tensor)
 
         with torch.no_grad():
             self.connectivity_argmaxed = torch.zeros_like(self.connectivity_matrix)
             self.connectivity_argmaxed.scatter_(2, torch.argmax(self.connectivity_matrix, dim=2, keepdim=True), 1)
-        # with torch.no_grad():
-        #     re_list = utils.adjacency_tensor_to_rel_list(self.adjacency_tensor)
-        # print(ct)
+
         if self.method == 'unsupervised':
             # propose image for missing boy
-            proposals = self.final_predictor.generate_image_proposals(self.objects, chosen_idx)
-            proposal_feats = self.feature_net(proposals)
-            predicted_image = self.final_predictor(vertex_feature_list, self.adjacency_tensor, chosen_idx)
-            self.predicted_image = predicted_image
+            # proposals = self.final_predictor.generate_image_proposals(self.objects, chosen_idx)
+            proposals = utils.propose_orientations(orientation_tensor, chosen_idx)
+            # proposal_feats = self.feature_net(proposals)
+            # predicted_image = self.final_predictor(vertex_feature_list, self.adjacency_tensor, chosen_idx)
+            # self.predicted_image = predicted_image
 
     def compute_loss(self):
         if self.method == 'supervised':
@@ -192,41 +181,6 @@ class SyntheticGraphLearner(nn.Module):
             masked_objects.append(masked_object_idx)
 
         return image_masked, masked_objects
-
-    def get_imagelets(self, image, objects):
-        # list option
-        imagelet_batch = []
-
-        if self.use_cuda:
-            imagelet_base = torch.cuda.FloatTensor
-        else:
-            imagelet_base = torch.FloatTensor
-
-        for b in range(self.opts.batch_size):
-            bboxes = [obj['bbox'] for obj in objects[b]]
-            imagelets = imagelet_base(len(bboxes), 3, 96, 96)
-            for i, bb in enumerate(bboxes):
-                imagelets[i, ...] = image[b, :, bb[2]:bb[3], bb[0]:bb[1]]
-            imagelet_batch.append(imagelets)
-
-        # # tensor_option
-        # # feat dimension: Batch x Dmax X d
-        # # imagelet dim: Batch x Dmax X c x h x w
-        # D_max = max([len(a['objects']) for a in annotations])
-        # c = 3
-        # h = 32
-        # w = 32
-        # imagelets = torch.zeros(self.opts.batch_size,D_max, c, w, h)
-        #
-        # if self.use_cuda:
-        #     imagelets.cuda()
-        #
-        # for i, image_annotation in enumerate(annotations):
-        #     for j, detection in enumerate(image_annotation['objects']):
-        #         bbox = detection['bbox']
-        #         imagelets[i, j, ...] = image[i, :, bbox[2]:bbox[3], bbox[0]:bbox[1]]
-
-        return imagelet_batch
 
     def get_loss(self):
         return self.loss.detach().item()

@@ -8,11 +8,11 @@ path: 'scene_info.json'
 
 train:
   method: 'supervised'
-  lr: 0.001
+  lr: 0.0001
   cuda: False
   schedule:
-    lr_step_every: 2
-    gamma: 0.1
+    lr_step_every: 15
+    gamma: 0.5
 
 FeatNet:
   feat_out: 64
@@ -30,4 +30,4 @@ writer:
   use_writer: False
 
 limiter:
-  fraction_dropped: 0.50
+  fraction_dropped: 0.5

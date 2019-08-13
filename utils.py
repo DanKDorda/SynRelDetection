@@ -43,6 +43,24 @@ def adjacency_tensor_to_rel_list(at):
     return rl
 
 
+def get_positions_and_orients(objects, batch_size=4, num_objects=10):
+    pos = torch.empty(batch_size, num_objects, 2)
+    ori = torch.empty(batch_size, num_objects, 1)
+
+    for i, batch in enumerate(objects):
+        for j, obj in enumerate(batch):
+            bb = obj['bbox']
+            pos[i, j] = torch.tensor([(bb[0] + bb[1])/2, (bb[2] + bb[3])/2])
+            ori[i, j] = obj['orientation']
+
+    return pos, ori
+
+
+def propose_orientations(orientations, chosen_idx):
+    
+    return orientations[chosen_idx]
+
+
 class SceneVisualiser:
     def __init__(self):
         self.scene = np.zeros((500, 500, 3))

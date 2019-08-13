@@ -109,7 +109,7 @@ if __name__ == "__main__":
         if args.supervised:
             opts = get_opts()
         else:
-            opts = get_opts(os.path.join(os.getcwd(), 'options/debug_unsupervised.yaml'))
+            opts = get_opts(os.path.join(os.getcwd(), 'options/debug_opts.yaml'))
 
     print('options acquired')
     print('================================')

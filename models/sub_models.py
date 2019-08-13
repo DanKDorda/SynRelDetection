@@ -57,39 +57,25 @@ class GraphProposalNetwork(nn.Module):
         super(GraphProposalNetwork, self).__init__()
         self.opts = opts
         self.N_heads = opts.GPN.N_heads
-        self.feat_in = opts.GPN.feat_in
+        self.feat_in = 3 # opts.GPN.feat_in
         self.geometry_feat = 4
-        self.feat_out = 256
-        self.feat_concat = self.feat_out * 2
+        self.feat_out = 16
+        self.feat_concat = 6 #self.feat_out * 2
 
         self.preliminary_transform = nn.Linear(self.feat_in, self.feat_out)
-        self.geometry_add = nn.Sequential(nn.Linear(self.geometry_feat, 32), nn.LeakyReLU(0.02),
-                                          nn.Linear(32, self.feat_out))
-        self.geometry_mult = nn.Sequential(nn.Linear(self.geometry_feat, 32), nn.LeakyReLU(0.02),
-                                           nn.Linear(32, self.feat_out))
-        self.attention_net = nn.Sequential(nn.Linear(self.feat_concat, 128), nn.LeakyReLU(0.02),
-                                           nn.Linear(128, self.N_heads))
-        self.connectivity_net = nn.Sequential(nn.Linear(self.feat_concat, 128), nn.ReLU(),
-                                              nn.Linear(128, 64), nn.ReLU(), nn.Linear(64, 10))
+        self.connectivity_net = nn.Sequential(nn.Linear(self.feat_concat, 32), nn.ReLU(),
+                                              nn.Linear(32, 8), nn.ReLU(), nn.Linear(8, 1))
 
-    def forward(self, object_features, scene_geometry, d_max=10):
-        # object_features is a list of tensors of D x 128 x 1 x 1
-        # input tensor dim = batch x D_max x feature_len
+    def forward(self, position_tensor, orientation_tensor, d_max=10):
+        # inputs are the object positions and orientations
 
-        # visual_features = torch.cat((object_features, scene_geometry), 2)
+        # size: batch x n_obj x 3
+        full_feature_tensor = torch.cat([position_tensor, orientation_tensor], dim=2)
+        # full_feature_tensor = self.preliminary_transform(full_feature_tensor)
 
-        # adjacency_tensor = torch.zeros(len(object_features), d_max, d_max, self.N_heads)
-
-        embed_vertices = self.preliminary_transform(
-            torch.cat([of.unsqueeze(0) for of in object_features]).view(self.opts.batch_size, 10, self.feat_in))
-        embed_geometry_m = self.geometry_mult(scene_geometry)
-        embed_geometry_a = self.geometry_add(scene_geometry)
-
-        embed_vertices = embed_vertices * embed_geometry_m
-        embed_vertices = embed_vertices + embed_geometry_a
-        mega_compound_tensor = torch.zeros(len(object_features), d_max, self.feat_concat)
-
-        for batch_idx, batch_vertices in enumerate(embed_vertices.split(1)):
+        # create pairwise feature groupings
+        mega_compound_tensor = torch.empty(self.opts.batch_size, 10, 10, self.feat_concat)
+        for batch_idx, batch_vertices in enumerate(full_feature_tensor.split(1)):
             # batch_vertices.squeeze_(2)
             # batch_vertices.squeeze_(2)
             # geom_cat = torch.cat((batch_vertices, scene_geometry[batch_idx, ...]), dim=1)
@@ -104,13 +90,16 @@ class GraphProposalNetwork(nn.Module):
                 for j, vj in enumerate([v for k, v in enumerate(vlist) if k != i]):
                     compound_tensor = torch.cat((compound_tensor, torch.cat((vi, vj), dim=1)))
                 # compound_tensor = compound_tensor[1:]
-                mega_compound_tensor[batch_idx] = compound_tensor
+                mega_compound_tensor[batch_idx, i] = compound_tensor
                 # edge_vals = self.connectivity_net(compound_tensor)
                 # adjacency_tensor[batch_idx, i] = edge_vals.transpose(1, 0)
 
         big_edge = self.connectivity_net(mega_compound_tensor)
-        adjacency_tensor = big_edge.permute(0, 2, 1)
-        return adjacency_tensor
+        big_edge.squeeze_(3)
+        big_edge = big_edge.permute(0, 2, 1)
+        # print(big_edge.shape)
+        # adjacency_tensor = big_edge.permute(0, 2, 1, 3)
+        return big_edge
 
 
 class ResnetBlock(nn.Module):
