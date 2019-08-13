@@ -5,7 +5,8 @@ import torch.nn as nn
 import copy
 
 import utils
-from sub_models import FeatureNet, GraphProposalNetwork, FinalPredictor
+from models.sub_models import FeatureNet, GraphProposalNetwork
+from models.self_super_transformer_lays import FinalPredictor
 
 
 class SyntheticGraphLearner(nn.Module):
@@ -71,7 +72,8 @@ class SyntheticGraphLearner(nn.Module):
             self.image.cuda()
 
         if self.method == 'unsupervised':
-            image_masked, chosen_idx = self.masker(self.image, annotations)
+            #image_masked, chosen_idx = self.masker(self.image, self.objects)
+            chosen_idx = 3
 
         # find features from images -> list
         imagelets_batched = self.get_imagelets(self.image, self.objects)
@@ -100,7 +102,8 @@ class SyntheticGraphLearner(nn.Module):
         # print(ct)
         if self.method == 'unsupervised':
             # propose image for missing boy
-            self.final_predictor.generate_image_proposals(self.objects, chosen_idx)
+            proposals = self.final_predictor.generate_image_proposals(self.objects, chosen_idx)
+            proposal_feats = self.feature_net(proposals)
             predicted_image = self.final_predictor(vertex_feature_list, self.adjacency_tensor, chosen_idx)
             self.predicted_image = predicted_image
 
@@ -132,7 +135,8 @@ class SyntheticGraphLearner(nn.Module):
             #     ce_loss += self.softmax_criterion(row, target)
             self.loss = ce_loss
         elif self.method == 'unsupervised':
-            self.loss = self.l1_criterion(self.predicted_image, self.desired_out)
+            #self.loss = self.l1_criterion(self.predicted_image, self.desired_out)
+            raise NotImplementedError('no unsupervised loss implemented')
 
     def optimize_params(self):
         if self.method == 'supervised':

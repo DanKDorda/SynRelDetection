@@ -8,11 +8,10 @@ from pprint import pformat
 import argparse
 
 import torch
-import torch.nn as nn
 import torch.utils.data as data
 from torch.utils.tensorboard import SummaryWriter
 
-import model
+from models import model
 from data.visual_genome_loader import VG_dataset, custom_collate
 
 
@@ -100,13 +99,17 @@ if __name__ == "__main__":
     # print('test mode')
     ap = argparse.ArgumentParser()
     ap.add_argument("--no_debug", action="store_true")
+    ap.add_argument("--supervised", action="store_true")
     args = ap.parse_args()
     print('args: \n', args)
     if args.no_debug:
         cp = os.path.join(os.getcwd(), 'options/easy_bce_2000.yaml')
         opts = get_opts(cp)
     else:
-        opts = get_opts()
+        if args.supervised:
+            opts = get_opts()
+        else:
+            opts = get_opts(os.path.join(os.getcwd(), 'options/debug_unsupervised.yaml'))
 
     print('options acquired')
     print('================================')

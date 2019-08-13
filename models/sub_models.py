@@ -1,5 +1,7 @@
 import torch
 from torch import nn
+import numpy as np
+from data.proposal_dataset import ProposalDs
 
 
 class FeatureNet(nn.Module):
@@ -77,7 +79,6 @@ class GraphProposalNetwork(nn.Module):
         # visual_features = torch.cat((object_features, scene_geometry), 2)
 
         # adjacency_tensor = torch.zeros(len(object_features), d_max, d_max, self.N_heads)
-        adjacency_tensor = torch.zeros(len(object_features), d_max, d_max)
 
         embed_vertices = self.preliminary_transform(
             torch.cat([of.unsqueeze(0) for of in object_features]).view(self.opts.batch_size, 10, self.feat_in))
@@ -110,20 +111,6 @@ class GraphProposalNetwork(nn.Module):
         big_edge = self.connectivity_net(mega_compound_tensor)
         adjacency_tensor = big_edge.permute(0, 2, 1)
         return adjacency_tensor
-
-
-class FinalPredictor(nn.Module):
-    def __init__(self, opts):
-        super(FinalPredictor, self).__init__()
-        self.opts = opts
-        self.proposed_objects = torch.empty(self.opts.batch_size)
-
-    def generate_image_proposals(self, objects, chosen_idx):
-        chosen_obj_orientation = [objects[i][chosen_idx[i]]['orientation'] for i in range(self.opts.batch_size)]
-
-    def forward(self, input_data):
-        output = input_data
-        return output
 
 
 class ResnetBlock(nn.Module):
