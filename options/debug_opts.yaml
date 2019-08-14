@@ -20,6 +20,7 @@ FeatNet:
 GPN:
   N_heads: 2
   feat_in: 64
+  net_mode: 'simple'
 
 logs:
   loss_out: 50

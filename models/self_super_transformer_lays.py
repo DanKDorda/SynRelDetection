@@ -14,12 +14,14 @@ class FinalPredictor(nn.Module):
         self.n_proposals = 4
 
         # NETWORK STRUCTURE
-        self.preliminary_transform = nn.Linear(3, 256)
-
         self.feat_out = 256
+        n_objects = 10
+        self.preliminary_transform = nn.Sequential(nn.Linear(2*n_objects, 8*n_objects), nn.ReLU(), nn.Linear(8*n_objects, 1*n_objects))
+
         # self.final_layer = nn.Linear(256, self.feat_out)
+        self.sm = F.softmax #.Softmax()
         n_transforms = self.opts.FP.n_transforms
-        hidden = 256
+        hidden = 8
         n_heads = 4
         dropout = 0.1
         self.feat_transformer_blocks = nn.ModuleList([TransformerBlock(hidden, n_heads, hidden*4, dropout) for _ in range(n_transforms)])
@@ -36,35 +38,45 @@ class FinalPredictor(nn.Module):
         """
         # select the relevant relationship row
         relevant_relationships = adjacency_tensor[:, chosen_idx]
-        # relevant_relationships.unsqueeze_(3)
+        relevant_relationships.unsqueeze_(2)
+        #relevant_relationships = self.sm(relevant_relationships)
+        relevant_relationships = F.softmax(relevant_relationships, dim=1)
         # use a TRANSFORMER to create an attention pooling thing which creates one output vector for all the connected components
         # the mask is the weight vector from the adjacency
         n_objects = 10
 
         # size: batch x n_object x 3
-        full_features = torch.cat([position_tensor, orientation_tensor], dim=2)
-        # obfuscate the chosen angle
-        full_features[:, chosen_idx, 2] = 0
-        full_features = self.preliminary_transform(full_features)
-
-        mask = torch.ones(self.opts.batch_size, n_objects)
+        mask = torch.ones_like(orientation_tensor)
         mask[:, chosen_idx] = 0
+        orientation_masked = orientation_tensor.clone() * mask
+        prediction_features = torch.cat([orientation_masked, relevant_relationships], dim=2)
+
+        out = self.preliminary_transform(prediction_features.view(self.opts.batch_size, -1))
+        return out
+
+        # full_features = torch.cat([position_tensor, orientation_tensor], dim=2)
+        # full_features = torch.cat([position_tensor, orientation_tensor, relevant_relationships], dim=2)
+        # obfuscate the chosen angle
+        # full_features = self.preliminary_transform(full_features)
+        # mask = torch.ones(self.opts.batch_size, n_objects)
+        # mask[:, chosen_idx] = 0
+        # scoring_vector = full_features #torch.empty(self.opts.batch_size, )
 
         # where to use relevant_relationships???
-
-        scoring_vector = full_features #torch.empty(self.opts.batch_size, )
+        scoring_vector = prediction_features
 
         for transformer in self.feat_transformer_blocks:
             scoring_vector = transformer.forward(scoring_vector, None)
 
         # size: batch x n_proposal x 1
-        target_pos = position_tensor[:, chosen_idx].unsqueeze(1)
-        target_pos = target_pos.repeat(1, 4, 1)
-        embed_proposals = self.preliminary_transform(torch.cat([target_pos, proposals], dim=2))
-        important_scores = scoring_vector[:, chosen_idx].unsqueeze(1).transpose(-2, -1)
-        embeddings = embed_proposals
-        pre_softmax_scores = torch.matmul(embeddings, important_scores)#/math.sqrt(embeddings.size(-1))
-        return pre_softmax_scores
+        # target_pos = position_tensor[:, chosen_idx].unsqueeze(1)
+        # target_pos = target_pos.repeat(1, 4, 1)
+        # embed_proposals = self.preliminary_transform(torch.cat([target_pos, proposals], dim=2))
+        # important_scores = scoring_vector[:, chosen_idx].unsqueeze(1).transpose(-2, -1)
+        # embeddings = embed_proposals
+        # pre_softmax_scores = torch.matmul(embeddings, important_scores)#/math.sqrt(embeddings.size(-1))
+        # return pre_softmax_scores
+        return scoring_vector
 
 
 ########################################################################################

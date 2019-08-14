@@ -3,6 +3,7 @@ import time
 import numpy as np
 from PIL import Image
 import cv2
+import matplotlib.pyplot as plt
 
 
 def rel_list_to_adjacency_tensor(relation_list_batch, batch_size, num_objects):
@@ -46,11 +47,12 @@ def adjacency_tensor_to_rel_list(at):
 def get_positions_and_orients(objects, batch_size=4, num_objects=10):
     pos = torch.empty(batch_size, num_objects, 2)
     ori = torch.empty(batch_size, num_objects, 1)
+    im_size = 500
 
     for i, batch in enumerate(objects):
         for j, obj in enumerate(batch):
             bb = obj['bbox']
-            pos[i, j] = torch.tensor([(bb[0] + bb[1])/2, (bb[2] + bb[3])/2])
+            pos[i, j] = torch.tensor([(bb[0] + bb[1])/(2*im_size), (bb[2] + bb[3])/(2*im_size)])
             ori[i, j] = obj['orientation']
 
     return pos, ori
@@ -71,6 +73,39 @@ def propose_orientations(orientations, chosen_idx, batch_size=4):
     orientation_proposals = orientation_proposals[:, rand_perm]
     target_idx = list(rand_perm).index(3)
     return orientation_proposals, torch.tensor(target_idx, dtype=torch.long)
+
+
+def plot_grad_flow(named_parameters):
+    '''Plots the gradients flowing through different layers in the net during training.
+    Can be used for checking for possible gradient vanishing / exploding problems.
+
+    Usage: Plug this function in Trainer class after loss.backwards() as
+    "plot_grad_flow(self.model.named_parameters())" to visualize the gradient flow'''
+    ave_grads = []
+    max_grads = []
+    layers = []
+    for n, p in named_parameters:
+        if (p.requires_grad) and ("bias" not in n):
+            layers.append(n)
+            try:
+                ave_grads.append(p.grad.abs().mean())
+                max_grads.append(p.grad.abs().max())
+            except AttributeError as e:
+                print(f'{n} has no grad, {e}')
+    plt.bar(np.arange(len(max_grads)), max_grads, alpha=0.1, lw=1, color="c")
+    plt.bar(np.arange(len(max_grads)), ave_grads, alpha=0.1, lw=1, color="b")
+    plt.hlines(0, 0, len(ave_grads) + 1, lw=2, color="k")
+    plt.xticks(range(0, len(ave_grads), 1), layers, rotation="vertical")
+    plt.xlim(left=0, right=len(ave_grads))
+    plt.ylim(bottom=-0.001, top=0.02)  # zoom in on the lower gradient regions
+    plt.xlabel("Layers")
+    plt.ylabel("average gradient")
+    plt.title("Gradient flow")
+    plt.grid(True)
+    plt.show()
+    #plt.legend([Line2D([0], [0], color="c", lw=4),
+    #            Line2D([0], [0], color="b", lw=4),
+    #            Line2D([0], [0], color="k", lw=4)], ['max-gradient', 'mean-gradient', 'zero-gradient'])
 
 
 class SceneVisualiser:

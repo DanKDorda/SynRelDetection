@@ -26,7 +26,7 @@ class SyntheticGraphLearner(nn.Module):
         self.gt_connectivity_matrix = torch.LongTensor()
         self.predicted_image = torch.FloatTensor()
         self.eval_dict = {'TP': 0, 'FP': 0, 'TN': 0, 'FN': 0}
-        self.predicted_orientation = torch.empty(4, 4, 1)
+        self.predicted_orientation = torch.empty(4, 10, 1)
         self.target = torch.LongTensor()
 
         # Define networks
@@ -71,6 +71,7 @@ class SyntheticGraphLearner(nn.Module):
                                                                             d_max)
 
         position_tensor, orientation_tensor = utils.get_positions_and_orients(self.objects)
+        self.full_feat = torch.cat([position_tensor, orientation_tensor], dim=2)
 
         ### MOVE TO GPU
         if self.use_cuda:
@@ -100,8 +101,8 @@ class SyntheticGraphLearner(nn.Module):
                                                    chosen_idx, proposals)
 
     def compute_loss(self):
-        if self.method == 'supervised':
-            self.loss = torch.tensor([0.0], dtype=torch.float32) #self.l1_critetion(self.adjacency_tensor, self.gt_adjacency_tensor) * 0.1
+        self.loss = torch.tensor([0.0], dtype=torch.float32) #self.l1_critetion(self.adjacency_tensor, self.gt_adjacency_tensor) * 0.1
+        if self.method == 'supervised' or True:
 
             # l1_loss = self.l1_critetion(self.connectivity_matrix, self.gt_connectivity_matrix)
             # print(l1_loss.dtype)
@@ -130,21 +131,24 @@ class SyntheticGraphLearner(nn.Module):
             #     row.squeeze_(1)
             #
             #     ce_loss += self.softmax_criterion(row, target)
-            self.loss = ce_loss
-        elif self.method == 'unsupervised':
+            self.loss += 0.5 * ce_loss
+
+        if self.method == 'unsupervised':
             # self.loss = self.l1_criterion(self.predicted_image, self.desired_out)
-            ce_loss_2 = self.softmax_criterion(self.predicted_orientation.squeeze(2), self.target.repeat(4))
-            self.loss = ce_loss_2
-            #raise NotImplementedError('no unsupervised loss implemented')
+            #ce_loss_2 = self.softmax_criterion(self.predicted_orientation.squeeze(2), self.target.repeat(4))
+            #self.loss += ce_loss_2
+            self.loss += self.l1_critetion(self.predicted_orientation, self.full_feat[:, :, 2])
 
     def optimize_params(self):
         if self.method == 'supervised':
             self.supervised_optimizer.zero_grad()
             self.loss.backward()
+            # utils.plot_grad_flow(self.named_parameters())
             self.supervised_optimizer.step()
         else:
             self.unsupervised_optimizer.zero_grad()
             self.loss.backward()
+            # utils.plot_grad_flow(self.named_parameters())
             self.unsupervised_optimizer.step()
             #raise NotImplementedError('only supervised implemented')
 
