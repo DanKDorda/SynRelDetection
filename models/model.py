@@ -26,7 +26,7 @@ class SyntheticGraphLearner(nn.Module):
         self.gt_connectivity_matrix = torch.LongTensor()
         self.predicted_image = torch.FloatTensor()
         self.eval_dict = {'TP': 0, 'FP': 0, 'TN': 0, 'FN': 0}
-        self.predicted_orientation = torch.empty(4, 10, 1)
+        self.predicted_orientation = torch.empty(4, 10, 10)
         self.target = torch.LongTensor()
 
         # Define networks
@@ -82,8 +82,8 @@ class SyntheticGraphLearner(nn.Module):
 
         if self.method == 'unsupervised':
             # image_masked, chosen_idx = self.masker(self.image, self.objects)
-            # chosen_idx = np.random.randint(0, 9)
-            chosen_idx = 3
+            chosen_idx = np.random.randint(0, 9)
+            # chosen_idx = 3
 
         # proposal of edges from object features and geometry
         self.connectivity_matrix = self.graph_proposal_net(position_tensor, orientation_tensor)
@@ -95,49 +95,35 @@ class SyntheticGraphLearner(nn.Module):
         if self.method == 'unsupervised':
             # propose image for missing boy
             # proposals = self.final_predictor.generate_image_proposals(self.objects, chosen_idx)
-            proposals, self.target = utils.propose_orientations(orientation_tensor, chosen_idx)
+            # proposals, self.target = utils.propose_orientations(orientation_tensor, chosen_idx)
             # proposal_feats = self.feature_net(proposals)
             self.predicted_orientation = self.final_predictor(position_tensor, orientation_tensor, self.connectivity_matrix,
-                                                   chosen_idx, proposals)
+                                                   chosen_idx)
 
     def compute_loss(self):
         self.loss = torch.tensor([0.0], dtype=torch.float32) #self.l1_critetion(self.adjacency_tensor, self.gt_adjacency_tensor) * 0.1
-        if self.method == 'supervised' or True:
+        self.sup_loss = 0
+        self.unsup_loss = 0
 
-            # l1_loss = self.l1_critetion(self.connectivity_matrix, self.gt_connectivity_matrix)
-            # print(l1_loss.dtype)
-            # print(self.loss.dtype)
-            # self.loss += l1_loss
+        ce_loss = 0
+        bad_idcs = self.indices_removed
+        for b in range(self.opts.batch_size):
+            for row, row_gt, bad_idx in zip(self.connectivity_matrix[b].split(1),
+                                            self.gt_connectivity_matrix[b].split(1), bad_idcs[b]):
+                if bad_idx == 0 or True:
+                    target = torch.argmax(row_gt)
+                    ce_loss += self.softmax_criterion(row, target.unsqueeze(0))
 
-            ce_loss = 0
-            bad_idcs = self.indices_removed
-            items_left = 5  # sum(bad_idcs[0])
-            num_items = 10
-            # small_one = torch.zeros(self.opts.batch_size, items_left, num_items)
-            # small_one.scatter_(2, bad_idcs, self.connectivity_matrix)
-            for b in range(self.opts.batch_size):
-                i = 0
-                for row, row_gt, bad_idx in zip(self.connectivity_matrix[b].split(1),
-                                                self.gt_connectivity_matrix[b].split(1), bad_idcs[b]):
-                    if bad_idx == 0:
-                        # small_one[b, i] = row
-                        target = torch.argmax(row_gt)
-                        ce_loss += self.softmax_criterion(row, target.unsqueeze(0))
-
-            # for row_idx, row in enumerate(self.connectivity_matrix.split(1, dim=1)):
-            #     if row_idx in bad_idcs:
-            #         continue
-            #     target = torch.argmax(self.gt_connectivity_matrix[:, row_idx, :], dim=1)
-            #     row.squeeze_(1)
-            #
-            #     ce_loss += self.softmax_criterion(row, target)
-            self.loss += 0.5 * ce_loss
+        self.loss += 0.5 * ce_loss
+        self.sup_loss = ce_loss.detach().item()
 
         if self.method == 'unsupervised':
             # self.loss = self.l1_criterion(self.predicted_image, self.desired_out)
             #ce_loss_2 = self.softmax_criterion(self.predicted_orientation.squeeze(2), self.target.repeat(4))
             #self.loss += ce_loss_2
-            self.loss += self.l1_critetion(self.predicted_orientation, self.full_feat[:, :, 2])
+            unsup_loss = self.l1_critetion(self.predicted_orientation, self.full_feat[:, :, 2])
+            self.loss += unsup_loss
+            self.unsup_loss = unsup_loss.detach().item()
 
     def optimize_params(self):
         if self.method == 'supervised':
@@ -200,7 +186,7 @@ class SyntheticGraphLearner(nn.Module):
         return image_masked, masked_objects
 
     def get_loss(self):
-        return self.loss.detach().item()
+        return self.loss.detach().item(), self.sup_loss, self.unsup_loss
 
     def get_image_output(self):
         sv = utils.SceneVisualiser()

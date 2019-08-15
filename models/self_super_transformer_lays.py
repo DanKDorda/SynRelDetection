@@ -26,7 +26,7 @@ class FinalPredictor(nn.Module):
         dropout = 0.1
         self.feat_transformer_blocks = nn.ModuleList([TransformerBlock(hidden, n_heads, hidden*4, dropout) for _ in range(n_transforms)])
 
-    def forward(self, position_tensor, orientation_tensor, adjacency_tensor, chosen_idx, proposals):
+    def forward(self, position_tensor, orientation_tensor, adjacency_tensor, chosen_idx):
         """
         :param position_tensor:
         :param orientation_tensor:
@@ -51,8 +51,12 @@ class FinalPredictor(nn.Module):
         orientation_masked = orientation_tensor.clone() * mask
         prediction_features = torch.cat([orientation_masked, relevant_relationships], dim=2)
 
-        out = self.preliminary_transform(prediction_features.view(self.opts.batch_size, -1))
-        return out
+        out_temp = self.preliminary_transform(prediction_features.view(self.opts.batch_size, -1))#.view(self.opts.batch_size, 10, 1)
+        #if chosen_idx == 0:
+        #    out = out_temp
+        #else:
+        #    out = torch.cat([out, out_temp], dim=2)
+        return out_temp
 
         # full_features = torch.cat([position_tensor, orientation_tensor], dim=2)
         # full_features = torch.cat([position_tensor, orientation_tensor, relevant_relationships], dim=2)

@@ -1,3 +1,5 @@
+note: 'no funky wunky business in supervised loss function'
+
 batch_size: 4
 num_epochs: 150
 num_workers: 4
@@ -34,4 +36,4 @@ writer:
   use_writer: True
 
 limiter:
-  fraction_dropped: 0.0
+  fraction_dropped: 0.5

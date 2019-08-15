@@ -36,10 +36,12 @@ def main(opts):
 
             # logging
             if current_iter % opts.logs.loss_out == 0:
-                loss = trainer.get_loss()
+                loss, sup_loss, unsup_loss = trainer.get_loss()
                 tqdm.tqdm.write(str(round(loss, 2)))
                 if opts.writer.use_writer:
                     writer.add_scalar('main supervised loss', loss, global_step=current_iter)
+                    writer.add_scalar('secondary_loss/sup', sup_loss, global_step=current_iter)
+                    writer.add_scalar('secondary_loss/unsup', unsup_loss, global_step=current_iter)
                     if current_iter % opts.logs.im_out == 0:
                         graph_im = trainer.get_image_output()
                         writer.add_image('connectivity_graph', torch.tensor(graph_im), current_iter, dataformats='HWC')

@@ -1,4 +1,4 @@
-comment: 'graph proposal model sized increased. More pre-transform, more hidden units'
+comment: 'crankin fraction down'
 
 batch_size: 4
 num_epochs: 100
@@ -22,7 +22,7 @@ FeatNet:
 GPN:
   N_heads: 2
   feat_in: 64
-  net_mode: 'complex'
+  net_mode: 'simple'
 
 logs:
   loss_out: 50
@@ -33,4 +33,4 @@ writer:
   use_writer: True
 
 limiter:
-  fraction_dropped: 0.00
+  fraction_dropped: 0.1
