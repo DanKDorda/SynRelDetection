@@ -71,7 +71,7 @@ class GraphProposalNetwork(nn.Module):
             self.feat_concat = self.feat_out * 2
             self.preliminary_transform = nn.Linear(self.feat_in, self.feat_out)
             self.connectivity_net = nn.Sequential(nn.Linear(self.feat_concat, 32), nn.LeakyReLU(0.2),
-                                                  nn.Linear(32, 8), nn.LeakyReLU(0.2), nn.Linear(8, 1))
+                                                  nn.Linear(32, 8), nn.LeakyReLU(0.2), nn.Linear(8, 2))
 
     def forward(self, position_tensor, orientation_tensor, d_max=10):
         # inputs are the object positions and orientations
@@ -102,11 +102,12 @@ class GraphProposalNetwork(nn.Module):
                 # adjacency_tensor[batch_idx, i] = edge_vals.transpose(1, 0)
 
         big_edge = self.connectivity_net(mega_compound_tensor)
-        big_edge.squeeze_(3)
-        big_edge = big_edge.permute(0, 2, 1)
+        # big_edge.squeeze_(3)
+        big_edge = big_edge.permute(0, 2, 1, 3)
         # print(big_edge.shape)
         # adjacency_tensor = big_edge.permute(0, 2, 1, 3)
-        return big_edge
+        adjacency = torch.argmax(big_edge, dim=3)
+        return big_edge, adjacency
 
 
 class ResnetBlock(nn.Module):

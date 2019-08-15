@@ -16,7 +16,8 @@ class FinalPredictor(nn.Module):
         # NETWORK STRUCTURE
         self.feat_out = 256
         n_objects = 10
-        self.preliminary_transform = nn.Sequential(nn.Linear(2*n_objects, 8*n_objects), nn.ReLU(), nn.Linear(8*n_objects, 1*n_objects))
+        input_feats = n_objects
+        self.preliminary_transform = nn.Sequential(nn.Linear(input_feats, 8 * n_objects), nn.ReLU(), nn.Linear(8 * n_objects, 1 * n_objects))
 
         # self.final_layer = nn.Linear(256, self.feat_out)
         self.sm = F.softmax #.Softmax()
@@ -38,9 +39,9 @@ class FinalPredictor(nn.Module):
         """
         # select the relevant relationship row
         relevant_relationships = adjacency_tensor[:, chosen_idx]
-        relevant_relationships.unsqueeze_(2)
-        #relevant_relationships = self.sm(relevant_relationships)
-        relevant_relationships = F.softmax(relevant_relationships, dim=1)
+        # relevant_relationships.unsqueeze_(2)
+        # relevant_relationships = self.sm(relevant_relationships)
+        relevant_relationships = F.softmax(relevant_relationships, dim=2)
         # use a TRANSFORMER to create an attention pooling thing which creates one output vector for all the connected components
         # the mask is the weight vector from the adjacency
         n_objects = 10
@@ -49,9 +50,11 @@ class FinalPredictor(nn.Module):
         mask = torch.ones_like(orientation_tensor)
         mask[:, chosen_idx] = 0
         orientation_masked = orientation_tensor.clone() * mask
-        prediction_features = torch.cat([orientation_masked, relevant_relationships], dim=2)
+        #prediction_features = torch.cat([orientation_masked, relevant_relationships], dim=2)
+        prediction_features = orientation_masked.squeeze(2) * relevant_relationships[:, :, 1]
 
-        out_temp = self.preliminary_transform(prediction_features.view(self.opts.batch_size, -1))#.view(self.opts.batch_size, 10, 1)
+        ss_input = prediction_features.view(self.opts.batch_size, -1)
+        out_temp = self.preliminary_transform(ss_input)#.view(self.opts.batch_size, 10, 1)
         #if chosen_idx == 0:
         #    out = out_temp
         #else:

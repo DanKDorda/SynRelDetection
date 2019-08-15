@@ -54,7 +54,7 @@ class SyntheticGraphLearner(nn.Module):
         # TODO: scheduler
         # Define loss functions
         self.l1_critetion = nn.L1Loss()
-        self.softmax_criterion = nn.CrossEntropyLoss()
+        self.softmax_criterion = nn.CrossEntropyLoss(weight=torch.tensor(self.opts.train.ce_weight).float())
         self.loss = torch.FloatTensor()
 
     def forward(self, input_data):
@@ -86,18 +86,19 @@ class SyntheticGraphLearner(nn.Module):
             # chosen_idx = 3
 
         # proposal of edges from object features and geometry
-        self.connectivity_matrix = self.graph_proposal_net(position_tensor, orientation_tensor)
+        self.raw_score, self.connectivity_matrix = self.graph_proposal_net(position_tensor, orientation_tensor)
 
         with torch.no_grad():
-            self.connectivity_argmaxed = torch.zeros_like(self.connectivity_matrix)
-            self.connectivity_argmaxed.scatter_(2, torch.argmax(self.connectivity_matrix, dim=2, keepdim=True), 1)
+            self.connectivity_argmaxed = self.connectivity_matrix
+            # self.connectivity_argmaxed = torch.zeros_like(self.connectivity_matrix)
+            # self.connectivity_argmaxed.scatter_(2, torch.argmax(self.connectivity_matrix, dim=2, keepdim=True), 1)
 
         if self.method == 'unsupervised':
             # propose image for missing boy
             # proposals = self.final_predictor.generate_image_proposals(self.objects, chosen_idx)
             # proposals, self.target = utils.propose_orientations(orientation_tensor, chosen_idx)
             # proposal_feats = self.feature_net(proposals)
-            self.predicted_orientation = self.final_predictor(position_tensor, orientation_tensor, self.connectivity_matrix,
+            self.predicted_orientation = self.final_predictor(position_tensor, orientation_tensor, self.raw_score,
                                                    chosen_idx)
 
     def compute_loss(self):
@@ -107,14 +108,17 @@ class SyntheticGraphLearner(nn.Module):
 
         ce_loss = 0
         bad_idcs = self.indices_removed
-        for b in range(self.opts.batch_size):
-            for row, row_gt, bad_idx in zip(self.connectivity_matrix[b].split(1),
-                                            self.gt_connectivity_matrix[b].split(1), bad_idcs[b]):
-                if bad_idx == 0 or True:
-                    target = torch.argmax(row_gt)
-                    ce_loss += self.softmax_criterion(row, target.unsqueeze(0))
+        # for b in range(self.opts.batch_size):
+        #     for row, row_gt, bad_idx in zip(self.raw_score[b].split(1),
+        #                                     self.gt_connectivity_matrix[b].split(1), bad_idcs[b]):
+        #         if bad_idx == 0 or True:
+        #             target = torch.argmax(row_gt)
+        #             ce_loss += self.softmax_criterion(row, target.unsqueeze(0))
 
-        self.loss += 0.5 * ce_loss
+        target = self.gt_connectivity_matrix.long()
+        ce_loss += self.softmax_criterion(self.raw_score.permute(0, 3, 1, 2), target)
+
+        self.loss += ce_loss
         self.sup_loss = ce_loss.detach().item()
 
         if self.method == 'unsupervised':
