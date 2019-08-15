@@ -102,13 +102,14 @@ if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("--no_debug", action="store_true")
     ap.add_argument("--supervised", action="store_true")
+    ap.add_argument("--config", type=str)
     args = ap.parse_args()
     print('args: \n', args)
     if args.no_debug:
         if args.supervised:
-            cp = os.path.join(os.getcwd(), 'options/easy_bce_2000.yaml')
+            cp = os.path.join(os.getcwd(), 'options', args.config)
         else:
-            cp = os.path.join(os.getcwd(), 'options/train_unsupervised.yaml')
+            cp = os.path.join(os.getcwd(), 'options', args.config)
         opts = get_opts(cp)
     else:
         if args.supervised:
