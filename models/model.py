@@ -54,7 +54,7 @@ class SyntheticGraphLearner(nn.Module):
         # TODO: scheduler
         # Define loss functions
         self.l1_critetion = nn.L1Loss()
-        self.softmax_criterion = nn.CrossEntropyLoss(weight=torch.tensor(self.opts.train.ce_weight).float(), reduction='sum')
+        self.softmax_criterion = nn.CrossEntropyLoss(weight=torch.tensor(self.opts.train.ce_weight).float())
         #self.bce = nn.BCEWithLogitsLoss()
         self.loss = torch.FloatTensor()
 
@@ -71,7 +71,7 @@ class SyntheticGraphLearner(nn.Module):
         self.gt_connectivity_matrix = utils.rel_list_to_connectivity_matrix(self.relationships, self.opts.batch_size,
                                                                             d_max)
 
-        position_tensor, orientation_tensor = utils.get_positions_and_orients(self.objects)
+        position_tensor, orientation_tensor = utils.get_positions_and_orients(self.objects, batch_size=self.opts.batch_size)
         self.full_feat = torch.cat([position_tensor, orientation_tensor], dim=2)
 
         ### MOVE TO GPU
@@ -113,12 +113,11 @@ class SyntheticGraphLearner(nn.Module):
 
         if self.method == 'supervised' or self.method == 'joint':
             bad_idcs = self.indices_removed
-            # for b in range(self.opts.batch_size):
+            #for b in range(self.opts.batch_size):
             #     for row, row_gt, bad_idx in zip(self.raw_score[b].split(1),
             #                                     self.gt_connectivity_matrix[b].split(1), bad_idcs[b]):
             #         if bad_idx == 0 or True:
-            #             target = torch.argmax(row_gt)
-            #             ce_loss += self.softmax_criterion(row, target.unsqueeze(0))
+            #             ce_loss += self.softmax_criterion(row, torch.argmax(row_gt.unsqueeze(0)))
 
             target = self.gt_connectivity_matrix.long()
             ce_loss += self.softmax_criterion(self.raw_score.permute(0, 3, 1, 2), target)

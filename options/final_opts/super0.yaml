@@ -1,6 +1,6 @@
 anote: 'super 0'
 
-batch_size: 4
+batch_size: 16
 num_epochs: 150
 num_workers: 4
 scales: [1]
@@ -10,7 +10,7 @@ path: 'scene_info.json'
 
 train:
   method: 'supervised'
-  ce_weight: [1, 9]
+  ce_weight: [1, 8.5]
   lr: 0.0005
   cuda: False
   schedule:

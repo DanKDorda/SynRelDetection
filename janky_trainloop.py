@@ -45,7 +45,7 @@ def main(opts):
                     writer.add_scalar('secondary_loss/sup', sup_loss, global_step=current_iter)
                     writer.add_scalar('secondary_loss/unsup', unsup_loss, global_step=current_iter)
                     writer.add_histogram('magnitudes/gradient', trainer.get_grad_magnitude(), current_iter)
-                    writer.add_scalar('magnitudes/weight', trainer.get_weight_norm(), current_iter)
+                    writer.add_histogram('magnitudes/weight', trainer.get_weight_norm(), current_iter)
                     if current_iter % opts.logs.im_out == 0:
                         graph_im = trainer.get_image_output()
                         writer.add_image('connectivity_graph', torch.tensor(graph_im), current_iter, dataformats='HWC')
