@@ -207,12 +207,13 @@ class SyntheticGraphLearner(nn.Module):
     def get_weight_norm(self):
         params = list(self.parameters())
         norm = [torch.norm(param.data) for param in params]
-        return norm
+        return np.array(norm)
 
     def get_grad_magnitude(self):
         params = list(self.parameters())
-        norm = [torch.norm(param.grad) for param in params]
-        return norm
+        norm = [torch.norm(param.grad) for param in params if param.grad is not None]
+        return np.array(norm)
+
 
 if __name__ is '__main__':
     print('test mode')
