@@ -16,8 +16,8 @@ class FinalPredictor(nn.Module):
         # NETWORK STRUCTURE
         self.feat_out = 256
         n_objects = 10
-        input_feats = n_objects
-        self.preliminary_transform = nn.Sequential(nn.Linear(input_feats, 8 * n_objects), nn.ReLU(), nn.Linear(8 * n_objects, 1 * n_objects))
+        input_feats = 3*n_objects
+        self.preliminary_transform = nn.Sequential(nn.Linear(input_feats, 8 * n_objects), nn.LeakyReLU(0.05), nn.Linear(8 * n_objects, 1 * n_objects), nn.LeakyReLU(0.05), nn.Linear(n_objects, 1))
 
         # self.final_layer = nn.Linear(256, self.feat_out)
         self.sm = F.softmax #.Softmax()
@@ -50,8 +50,8 @@ class FinalPredictor(nn.Module):
         mask = torch.ones_like(orientation_tensor)
         mask[:, chosen_idx] = 0
         orientation_masked = orientation_tensor.clone() * mask
-        #prediction_features = torch.cat([orientation_masked, relevant_relationships], dim=2)
-        prediction_features = orientation_masked.squeeze(2) * relevant_relationships[:, :, 1]
+        prediction_features = torch.cat([orientation_masked, relevant_relationships], dim=2)
+        # prediction_features = orientation_masked.squeeze(2) * relevant_relationships[:, :, 1]
 
         ss_input = prediction_features.view(self.opts.batch_size, -1)
         out_temp = self.preliminary_transform(ss_input)#.view(self.opts.batch_size, 10, 1)

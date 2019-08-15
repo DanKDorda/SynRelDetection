@@ -98,6 +98,7 @@ class SyntheticGraphLearner(nn.Module):
             # proposals = self.final_predictor.generate_image_proposals(self.objects, chosen_idx)
             # proposals, self.target = utils.propose_orientations(orientation_tensor, chosen_idx)
             # proposal_feats = self.feature_net(proposals)
+            self.chosen_idx = chosen_idx
             self.predicted_orientation = self.final_predictor(position_tensor, orientation_tensor, self.raw_score,
                                                    chosen_idx)
 
@@ -107,25 +108,28 @@ class SyntheticGraphLearner(nn.Module):
         self.unsup_loss = 0
 
         ce_loss = 0
-        bad_idcs = self.indices_removed
-        # for b in range(self.opts.batch_size):
-        #     for row, row_gt, bad_idx in zip(self.raw_score[b].split(1),
-        #                                     self.gt_connectivity_matrix[b].split(1), bad_idcs[b]):
-        #         if bad_idx == 0 or True:
-        #             target = torch.argmax(row_gt)
-        #             ce_loss += self.softmax_criterion(row, target.unsqueeze(0))
+        self.sup_loss = ce_loss
 
-        target = self.gt_connectivity_matrix.long()
-        ce_loss += self.softmax_criterion(self.raw_score.permute(0, 3, 1, 2), target)
+        if self.method == 'supervised' or 'joint':
+            bad_idcs = self.indices_removed
+            # for b in range(self.opts.batch_size):
+            #     for row, row_gt, bad_idx in zip(self.raw_score[b].split(1),
+            #                                     self.gt_connectivity_matrix[b].split(1), bad_idcs[b]):
+            #         if bad_idx == 0 or True:
+            #             target = torch.argmax(row_gt)
+            #             ce_loss += self.softmax_criterion(row, target.unsqueeze(0))
 
-        self.loss += ce_loss
-        self.sup_loss = ce_loss.detach().item()
+            target = self.gt_connectivity_matrix.long()
+            ce_loss += self.softmax_criterion(self.raw_score.permute(0, 3, 1, 2), target)
 
-        if self.method == 'unsupervised':
+            self.loss += ce_loss
+            self.sup_loss = ce_loss.detach().item()
+
+        if self.method == 'unsupervised' or 'joint':
             # self.loss = self.l1_criterion(self.predicted_image, self.desired_out)
             #ce_loss_2 = self.softmax_criterion(self.predicted_orientation.squeeze(2), self.target.repeat(4))
             #self.loss += ce_loss_2
-            unsup_loss = self.l1_critetion(self.predicted_orientation, self.full_feat[:, :, 2])
+            unsup_loss = self.l1_critetion(self.predicted_orientation.squeeze(1), self.full_feat[:, self.chosen_idx, 2])
             self.loss += unsup_loss
             self.unsup_loss = unsup_loss.detach().item()
 

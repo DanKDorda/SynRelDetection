@@ -3,7 +3,7 @@ num_epochs: 100
 num_workers: 4
 scales: [1]
 
-data_root: '/Users/i517610/PycharmProjects/SynRelDetection/datasets/debug_sr/'
+data_root: '/Users/i517610/PycharmProjects/SynRelDetection/datasets/sr4/'
 path: 'scene_info.json'
 
 train:
@@ -35,4 +35,4 @@ writer:
   use_writer: False
 
 limiter:
-  fraction_dropped: 0.50
+  fraction_dropped: 0.0

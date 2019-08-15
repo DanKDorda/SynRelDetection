@@ -1,4 +1,4 @@
-note: 'unsupervised ONLY'
+anote: 'super 0'
 
 batch_size: 4
 num_epochs: 150
@@ -9,7 +9,7 @@ data_root: '/Users/i517610/PycharmProjects/SynRelDetection/datasets/sr_fix/'
 path: 'scene_info.json'
 
 train:
-  method: 'unsupervised'
+  method: 'supervised'
   ce_weight: [1, 3]
   lr: 0.0001
   cuda: False
@@ -24,9 +24,6 @@ GPN:
   N_heads: 2
   feat_in: 64
   net_mode: 'simple'
-
-FP:
-  n_transforms: 2
 
 logs:
   loss_out: 50

@@ -1,16 +1,16 @@
-comment: 'new gpn, full super'
+comment: 'drop 50'
 
 batch_size: 4
 num_epochs: 100
 num_workers: 4
 scales: [1]
 
-data_root: '/Users/i517610/PycharmProjects/SynRelDetection/datasets/sr4/'
+data_root: '/Users/i517610/PycharmProjects/SynRelDetection/datasets/sr_fix/'
 path: 'scene_info.json'
 
 train:
   method: 'supervised'
-  ce_weight: [1, 3]
+  ce_weight: [1, 6]
   lr: 0.001
   cuda: False
   schedule:
@@ -34,4 +34,4 @@ writer:
   use_writer: True
 
 limiter:
-  fraction_dropped: 0.0
+  fraction_dropped: 0.5

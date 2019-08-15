@@ -32,4 +32,4 @@ writer:
   use_writer: False
 
 limiter:
-  fraction_dropped: 0.5
+  fraction_dropped: 0.0
