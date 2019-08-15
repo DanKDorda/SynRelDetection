@@ -31,7 +31,7 @@ FP:
 logs:
   loss_out: 50
   im_out: 100
-  val: 2
+  val: 1
 
 writer:
   use_writer: True

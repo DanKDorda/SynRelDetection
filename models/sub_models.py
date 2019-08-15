@@ -103,7 +103,7 @@ class GraphProposalNetwork(nn.Module):
 
         big_edge = self.connectivity_net(mega_compound_tensor)
         # big_edge.squeeze_(3)
-        big_edge = big_edge.permute(0, 2, 1, 3)
+        #big_edge = big_edge.permute(0, 2, 1, 3)
         # print(big_edge.shape)
         # adjacency_tensor = big_edge.permute(0, 2, 1, 3)
         adjacency = torch.argmax(big_edge, dim=3)
