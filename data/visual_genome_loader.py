@@ -45,9 +45,8 @@ class VG_dataset(data.Dataset):
         image_path = osp.join(self.image_root, image_id)
 
         # transform image
-        #img = Image.open(image_path)
-        #img = self.transform(img)
-        img = torch.tensor([0])
+        img = Image.open(image_path)
+        img = self.transform(img)
 
         # DO THE LIMITING
         num_rels = 10  # len(img_info['relationships'])

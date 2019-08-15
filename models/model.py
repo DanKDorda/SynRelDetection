@@ -31,12 +31,12 @@ class SyntheticGraphLearner(nn.Module):
 
         # Define networks
         self.graph_proposal_net = GraphProposalNetwork(opts)
-        if self.method == 'unsupervised':
+        if self.method == 'unsupervised' or self.method == 'joint':
             self.final_predictor = FinalPredictor(opts)
 
         if self.use_cuda:
             self.graph_proposal_net.cuda()
-            if self.method == 'unsupervised':
+            if self.method == 'unsupervised' or self.method == 'joint':
                 self.final_predictor.cuda()
 
         # Define optimizers
@@ -48,7 +48,7 @@ class SyntheticGraphLearner(nn.Module):
                                                          gamma=self.opts.train.schedule.gamma)
 
         # now for the unsupervised part...
-        if self.method == 'unsupervised':
+        if self.method == 'unsupervised' or self.method == 'joint':
             self.unsupervised_optimizer = torch.optim.Adam(param_list + list(self.final_predictor.parameters()),
                                                            lr=self.opts.train.lr)
         # TODO: scheduler
@@ -80,7 +80,7 @@ class SyntheticGraphLearner(nn.Module):
             position_tensor.cuda()
             orientation_tensor.cuda()
 
-        if self.method == 'unsupervised':
+        if self.method == 'unsupervised' or self.method == 'joint':
             # image_masked, chosen_idx = self.masker(self.image, self.objects)
             chosen_idx = np.random.randint(0, 9)
             # chosen_idx = 3
@@ -93,7 +93,7 @@ class SyntheticGraphLearner(nn.Module):
             # self.connectivity_argmaxed = torch.zeros_like(self.connectivity_matrix)
             # self.connectivity_argmaxed.scatter_(2, torch.argmax(self.connectivity_matrix, dim=2, keepdim=True), 1)
 
-        if self.method == 'unsupervised':
+        if self.method == 'unsupervised' or self.method == 'joint':
             # propose image for missing boy
             # proposals = self.final_predictor.generate_image_proposals(self.objects, chosen_idx)
             # proposals, self.target = utils.propose_orientations(orientation_tensor, chosen_idx)
@@ -110,7 +110,7 @@ class SyntheticGraphLearner(nn.Module):
         ce_loss = 0
         self.sup_loss = ce_loss
 
-        if self.method == 'supervised' or 'joint':
+        if self.method == 'supervised' or self.method == 'joint':
             bad_idcs = self.indices_removed
             # for b in range(self.opts.batch_size):
             #     for row, row_gt, bad_idx in zip(self.raw_score[b].split(1),
@@ -125,7 +125,7 @@ class SyntheticGraphLearner(nn.Module):
             self.loss += ce_loss
             self.sup_loss = ce_loss.detach().item()
 
-        if self.method == 'unsupervised' or 'joint':
+        if self.method == 'unsupervised' or self.method == 'joint':
             # self.loss = self.l1_criterion(self.predicted_image, self.desired_out)
             #ce_loss_2 = self.softmax_criterion(self.predicted_orientation.squeeze(2), self.target.repeat(4))
             #self.loss += ce_loss_2

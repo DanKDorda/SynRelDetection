@@ -80,7 +80,7 @@ def get_dataloader(opts):
     dl = data.DataLoader(ds, batch_size=opts.batch_size, shuffle=True, num_workers=opts.num_workers,
                          collate_fn=partial_collate_fn)
 
-    dl_val = data.DataLoader(ds_val, batch_size=opts.batch_size, shuffle=True, num_workers=opts.num_workers,
+    dl_val = data.DataLoader(ds_val, batch_size=opts.batch_size, shuffle=False, num_workers=opts.num_workers,
                              collate_fn=partial_collate_fn)
 
     return dl, dl_val
