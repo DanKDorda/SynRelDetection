@@ -10,8 +10,8 @@ path: 'scene_info.json'
 
 train:
   method: 'supervised'
-  ce_weight: [1, 6]
-  lr: 0.001
+  ce_weight: [1, 9]
+  lr: 0.0005
   cuda: False
   schedule:
     lr_step_every: 20

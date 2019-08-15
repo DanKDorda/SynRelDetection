@@ -53,7 +53,7 @@ def get_positions_and_orients(objects, batch_size=4, num_objects=10):
         for j, obj in enumerate(batch):
             bb = obj['bbox']
             pos[i, j] = torch.tensor([(bb[0] + bb[1])/(2*im_size), (bb[2] + bb[3])/(2*im_size)])
-            ori[i, j] = obj['orientation']
+            ori[i, j] = (obj['orientation']-np.pi/4)/np.pi
 
     return pos, ori
 

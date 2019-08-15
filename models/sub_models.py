@@ -1,5 +1,6 @@
 import torch
 from torch import nn
+import torch.functional as F
 import numpy as np
 from data.proposal_dataset import ProposalDs
 
@@ -67,18 +68,20 @@ class GraphProposalNetwork(nn.Module):
             self.connectivity_net = nn.Sequential(nn.Linear(self.feat_concat, 32), nn.LeakyReLU(0.2),
                                                   nn.Linear(32, 8), nn.LeakyReLU(0.2), nn.Linear(8, 1))
         elif self.opts.GPN.net_mode == 'simple':
-            self.feat_out = 16
+            self.feat_out = 3
             self.feat_concat = self.feat_out * 2
+            self.feat_inter = 64
             self.preliminary_transform = nn.Linear(self.feat_in, self.feat_out)
-            self.connectivity_net = nn.Sequential(nn.Linear(self.feat_concat, 32), nn.LeakyReLU(0.2),
-                                                  nn.Linear(32, 8), nn.LeakyReLU(0.2), nn.Linear(8, 2))
+            layers = [nn.Sequential(nn.Linear(self.feat_inter, self.feat_inter, bias=False), nn.ReLU()) for _ in range(20)]
+
+            self.connectivity_net = nn.Sequential(nn.Linear(self.feat_concat, self.feat_inter), nn.ReLU(), nn.Linear(self.feat_inter, 2))
 
     def forward(self, position_tensor, orientation_tensor, d_max=10):
         # inputs are the object positions and orientations
 
         # size: batch x n_obj x 3
         full_feature_tensor = torch.cat([position_tensor, orientation_tensor], dim=2)
-        full_feature_tensor = self.preliminary_transform(full_feature_tensor)
+        # full_feature_tensor = self.preliminary_transform(full_feature_tensor)
 
         # create pairwise feature groupings
         mega_compound_tensor = torch.empty(self.opts.batch_size, 10, 10, self.feat_concat)
@@ -89,24 +92,25 @@ class GraphProposalNetwork(nn.Module):
             # embed_vertices = self.preliminary_transform(batch_vertices)
             # embed_vertices = embed_vertices * embed_geometry_m[batch_idx]
             # embed_vertices = embed_vertices + embed_geometry_a[batch_idx]
-            batch_vertices.squeeze_(0)
-            vlist = torch.split(batch_vertices, 1)
+            # batch_vertices.squeeze_(0)
+            vlist = torch.split(batch_vertices.squeeze(0), 1)
 
             for i, vi in enumerate(vlist):
-                compound_tensor = torch.cat((vi, vi), dim=1)
-                for j, vj in enumerate([v for k, v in enumerate(vlist) if k != i]):
-                    compound_tensor = torch.cat((compound_tensor, torch.cat((vi, vj), dim=1)))
+                mega_compound_tensor[batch_idx, i, i] = torch.cat((vi, vi), dim=1)
+                other_list = [(k, v) for k, v in enumerate(vlist) if k != i]
+                for k, vj in other_list:
+                    mega_compound_tensor[batch_idx, i, k] = torch.cat((vi, vj), dim=1)
                 # compound_tensor = compound_tensor[1:]
-                mega_compound_tensor[batch_idx, i] = compound_tensor
                 # edge_vals = self.connectivity_net(compound_tensor)
                 # adjacency_tensor[batch_idx, i] = edge_vals.transpose(1, 0)
 
         big_edge = self.connectivity_net(mega_compound_tensor)
         # big_edge.squeeze_(3)
-        #big_edge = big_edge.permute(0, 2, 1, 3)
+        # big_edge = big_edge.permute(0, 2, 1, 3)
         # print(big_edge.shape)
         # adjacency_tensor = big_edge.permute(0, 2, 1, 3)
         adjacency = torch.argmax(big_edge, dim=3)
+        # adjacency = torch.sigmoid(big_edge) > 0.5
         return big_edge, adjacency
 
 

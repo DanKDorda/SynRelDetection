@@ -28,7 +28,7 @@ def main(opts):
     for epoch in range(opts.num_epochs):
         tqdm.tqdm.write(f'Starting epoch: {epoch}')
         # fw
-        for data_item in tqdm.tqdm(dl):
+        for data_item in tqdm.tqdm(dl, disable=False):
             trainer.forward(data_item)
             trainer.compute_loss()
             trainer.optimize_params()
@@ -37,11 +37,15 @@ def main(opts):
             # logging
             if current_iter % opts.logs.loss_out == 0:
                 loss, sup_loss, unsup_loss = trainer.get_loss()
+                tqdm.tqdm.write(f'wn: {trainer.get_weight_norm()}')
+                tqdm.tqdm.write(f'gm: {trainer.get_grad_magnitude()}')
                 tqdm.tqdm.write(str(round(loss, 2)))
                 if opts.writer.use_writer:
                     writer.add_scalar('main supervised loss', loss, global_step=current_iter)
                     writer.add_scalar('secondary_loss/sup', sup_loss, global_step=current_iter)
                     writer.add_scalar('secondary_loss/unsup', unsup_loss, global_step=current_iter)
+                    writer.add_histogram('magnitudes/gradient', trainer.get_grad_magnitude(), current_iter)
+                    writer.add_scalar('magnitudes/weight', trainer.get_weight_norm(), current_iter)
                     if current_iter % opts.logs.im_out == 0:
                         graph_im = trainer.get_image_output()
                         writer.add_image('connectivity_graph', torch.tensor(graph_im), current_iter, dataformats='HWC')
@@ -105,17 +109,19 @@ if __name__ == "__main__":
     ap.add_argument("--config", type=str)
     args = ap.parse_args()
     print('args: \n', args)
-    if args.no_debug:
-        if args.supervised:
-            cp = os.path.join(os.getcwd(), 'options', args.config)
-        else:
-            cp = os.path.join(os.getcwd(), 'options', args.config)
-        opts = get_opts(cp)
-    else:
-        if args.supervised:
-            opts = get_opts()
-        else:
-            opts = get_opts(os.path.join(os.getcwd(), 'options/debug_unsupervised.yaml'))
+    cp = os.path.join(os.getcwd(), 'options', args.config)
+    opts = get_opts(cp)
+    #if args.no_debug:
+    #    if args.supervised:
+    #        cp = os.path.join(os.getcwd(), 'options', args.config)
+    #    else:
+    #        cp = os.path.join(os.getcwd(), 'options', args.config)
+    #    opts = get_opts(cp)
+    #else:
+    #    if args.supervised:
+    #        opts = get_opts()
+    #    else:
+    #        opts = get_opts(os.path.join(os.getcwd(), 'options/debug_unsupervised.yaml'))
 
     print('options acquired')
     print('================================')

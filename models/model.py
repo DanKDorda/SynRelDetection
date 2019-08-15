@@ -54,7 +54,8 @@ class SyntheticGraphLearner(nn.Module):
         # TODO: scheduler
         # Define loss functions
         self.l1_critetion = nn.L1Loss()
-        self.softmax_criterion = nn.CrossEntropyLoss(weight=torch.tensor(self.opts.train.ce_weight).float())
+        self.softmax_criterion = nn.CrossEntropyLoss(weight=torch.tensor(self.opts.train.ce_weight).float(), reduction='sum')
+        #self.bce = nn.BCEWithLogitsLoss()
         self.loss = torch.FloatTensor()
 
     def forward(self, input_data):
@@ -65,8 +66,8 @@ class SyntheticGraphLearner(nn.Module):
             'objects'], input_data['relationships'], input_data['indices_removed']
 
         d_max = max([len(obj) for obj in self.objects])
-        self.gt_adjacency_tensor = utils.rel_list_to_adjacency_tensor(self.relationships, self.opts.batch_size,
-                                                                      d_max)
+        #self.gt_adjacency_tensor = utils.rel_list_to_adjacency_tensor(self.relationships, self.opts.batch_size, d_max)
+
         self.gt_connectivity_matrix = utils.rel_list_to_connectivity_matrix(self.relationships, self.opts.batch_size,
                                                                             d_max)
 
@@ -121,9 +122,10 @@ class SyntheticGraphLearner(nn.Module):
 
             target = self.gt_connectivity_matrix.long()
             ce_loss += self.softmax_criterion(self.raw_score.permute(0, 3, 1, 2), target)
+            #ce_loss += self.bce(self.raw_score, self.gt_connectivity_matrix)
 
             self.loss += ce_loss
-            self.sup_loss = ce_loss.detach().item()
+            self.sup_loss = ce_loss
 
         if self.method == 'unsupervised' or self.method == 'joint':
             # self.loss = self.l1_criterion(self.predicted_image, self.desired_out)
@@ -194,7 +196,7 @@ class SyntheticGraphLearner(nn.Module):
         return image_masked, masked_objects
 
     def get_loss(self):
-        return self.loss.detach().item(), self.sup_loss, self.unsup_loss
+        return self.loss.detach().item(), self.sup_loss.detach().item(), self.unsup_loss
 
     def get_image_output(self):
         sv = utils.SceneVisualiser()
@@ -202,6 +204,15 @@ class SyntheticGraphLearner(nn.Module):
 
         return sv.scene
 
+    def get_weight_norm(self):
+        params = list(self.parameters())
+        norm = [torch.norm(param.data) for param in params]
+        return norm
+
+    def get_grad_magnitude(self):
+        params = list(self.parameters())
+        norm = [torch.norm(param.grad) for param in params]
+        return norm
 
 if __name__ is '__main__':
     print('test mode')
